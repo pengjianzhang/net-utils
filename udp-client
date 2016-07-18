@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo hello | socat - UDP4:localhost:3456

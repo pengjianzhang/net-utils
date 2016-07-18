@@ -1,0 +1,178 @@
+#!/usr/bin/perl -w
+
+use IO::Socket::INET;
+use IO::Select;
+
+sub usage
+{
+	print "Usage:\n";
+	print "\tconnect client destIP destPort connectionNum selfip1 selfip2 selfip3 ...\n";
+	print "\tconnect server ip port\n\n"
+}
+
+
+my @sockArray = ();
+sub myConnect
+{
+	my ($destIP, $destPort, $connectionNum, @selfip) = @_;
+	my $i;
+	my $j;
+	my $selfipNum = scalar @selfip;
+	
+	my $n = $connectionNum*2;
+
+	if($n < 65535){
+		$n = 65535;
+	}	
+
+	for($i = 0; $i < $connectionNum; $i++){
+		for($j = 0; $j < $selfipNum; $j++) {
+		
+			my $sock = IO::Socket::INET->new(
+				PeerPort => $destPort,
+				PeerAddr => $destIP,
+				Proto => 'tcp',
+				LocalAddr => $selfip[$j]
+				) 
+				or die "Can't connect\n";				
+			print("conenct ok $i\n");
+			push(@sockArray, $sock); 	
+		}		
+	}
+}
+
+
+
+
+
+sub mySend
+{
+	my ($data) = @_;
+	my $len = scalar @sockArray;	
+	my $i;
+	my $sock;
+	my $re;
+
+	for($i = 0; $i < $len; $i++){
+		$sock = $sockArray[$i];
+		$re = $sock->syswrite($data, length $data);
+			
+		if(undef $re){
+			print "write error\n";
+			exit(1);
+		}
+		print "send $i ok\n";
+	}
+}
+
+
+my $interval = 2;
+sub start
+{
+	my ($destIP, $destPort, $connectionNum, @selfip) = @_;
+		
+	myConnect($destIP, $destPort, $connectionNum, @selfip);
+
+		
+	mySend("GET ");	
+	sleep($interval);
+	mySend(" / ");
+	sleep($interval);
+	mySend("HTTP/1.1");
+}
+
+sub stop
+{
+	my $i;
+	my $len = scalar @sockArray;	
+
+	for($i = 0; $i < $len; $i++){
+		$sock = $sockArray[$i];
+		close($sock);
+	}
+}
+
+
+
+
+
+
+sub client
+{
+	if( scalar @ARGV < 4 ){
+		usage();
+		exit(1) ;
+	}
+	print "before run this script: ulimit -n maxFdNum\n";
+	print "start connect...\n";
+	sleep(4);
+
+	start(@ARGV);
+	stop();
+}
+
+
+sub server
+{
+	my ($ip,$port) = @_;
+	my $select = IO::Select->new();
+	my @ready = ();
+	my $fh;
+	my $n;
+
+	print "***===$ip $port\n";
+	my $tcp = new IO::Socket::INET->new(LocalHost =>$ip, LocalPort => $port, Type => SOCK_STREAM, Reuse => 1, Listen => 10000, Blocking => 0)  or die "ERROR TCP" ;
+
+	$select->add($tcp);
+
+	while(1){
+		
+		if (@ready = $select->can_read(3)){
+			foreach $fh (@ready){
+				if($fh == $tcp)
+				{	my $newfd = $tcp->accept();
+
+					if($newfd > 0) {
+						print "Accept a fd $newfd\n";
+						$select->add($fh);
+					}else{
+						print "accept error\n";
+					}
+				}else{
+					my $buf = "";
+					$n =$fh->read($buf, 100);	
+					if($n > 0 ){
+						print "recv: $buf\n";
+					}else{
+						print "error at $fh\n";
+						$select->remove($fh);
+						$fh->close;
+					}
+				}
+			}
+		}
+	}
+
+}
+sub main
+{
+
+	
+	my $c =  shift (@ARGV );
+
+	print "@ARGV\n";
+	if( $c eq "client"){
+		print "client\n";
+		client(@ARGV);
+	}elsif( $c eq "server"){
+		print "server\n";
+		server(@ARGV);
+	}
+	else{
+		usage();
+	}
+
+}
+
+main();
+

@@ -1,0 +1,34 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+BUF_SIZE	1.c	26;"	d	file:
+BUF_SIZE	link.c	26;"	d	file:
+PRINTF	1.c	24;"	d	file:
+PRINTF	link.c	24;"	d	file:
+__ip_detect	1.c	/^static void __ip_detect(struct nlmsghdr *nlh,int len)$/;"	f	file:
+__ip_detect	link.c	/^static void __ip_detect(struct nlmsghdr *nlh,int len)$/;"	f	file:
+arping_send	1.c	/^static void arping_send(const char * name)$/;"	f	file:
+arping_send	link.c	/^static void arping_send(const char * name)$/;"	f	file:
+for_each_nlmsghdr	1.c	28;"	d	file:
+for_each_nlmsghdr	link.c	28;"	d	file:
+for_each_rtattr	1.c	30;"	d	file:
+for_each_rtattr	link.c	30;"	d	file:
+ifname	1.c	/^static char * ifname(struct ifinfomsg *ifimsg,int len)$/;"	f	file:
+ifname	link.c	/^static char * ifname(struct ifinfomsg *ifimsg,int len)$/;"	f	file:
+ip_detect	1.c	/^static void ip_detect(int fd)$/;"	f	file:
+ip_detect	link.c	/^static void ip_detect(int fd)$/;"	f	file:
+ip_socket	1.c	/^static int  ip_socket()$/;"	f	file:
+ip_socket	link.c	/^static int  ip_socket()$/;"	f	file:
+link_detect	1.c	/^static int link_detect(int fd, struct msghdr *pmh)$/;"	f	file:
+link_detect	link.c	/^static int link_detect(int fd)$/;"	f	file:
+link_request	1.c	/^static int link_request(int fd)$/;"	f	file:
+link_request	link.c	/^static int link_request(int fd)$/;"	f	file:
+link_socket	1.c	/^static int link_socket(struct sockaddr_nl *psa)$/;"	f	file:
+link_socket	link.c	/^static int link_socket()$/;"	f	file:
+main	1.c	/^int main (int argc, char *argv[])$/;"	f
+main	link.c	/^int main (int argc, char *argv[])$/;"	f
+msg_process	1.c	/^void msg_process(struct nlmsghdr * nh, int nread)$/;"	f
+msg_process	link.c	/^void msg_process(struct nlmsghdr * nh, int nread)$/;"	f

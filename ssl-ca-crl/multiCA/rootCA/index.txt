@@ -1,0 +1,10 @@
+V	211031232223Z		01	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostl1ca/emailAddress=jzpeng@banggoo.cn
+V	211031232542Z		02	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostl2ca/emailAddress=jzpeng@banggoo.cn
+V	211031232807Z		03	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostcase1/emailAddress=jzpeng@banggoo.cn
+V	211031232924Z		04	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostcase2/emailAddress=jzpeng@banggoo.cn
+R	211101032918Z	130816202537Z	05	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostrootcase3/emailAddress=jzpeng@banggoo.cn
+R	211101033120Z	130815035509Z	06	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostrootcase4/emailAddress=jzpeng@banggoo.cn
+R	211102200035Z	130816200145Z	07	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostrootcase5/emailAddress=jzpeng@banggoo.cn
+V	211102203254Z		08	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostrootcase6/emailAddress=jzpeng@banggoo.cn
+V	211105043029Z		09	unknown	/C=cn/ST=anhui/O=banggoo/OU=devel/CN=hostrootcase5/emailAddress=jzpeng@banggoo.cn
+V	170519070653Z		0B	unknown	/C=cn/ST=anhui/O=banggoo/OU=sha2/CN=banggoo.cn/emailAddress=banggoo@banggoo.cn

@@ -1,0 +1,3 @@
+#!/bin/sh
+
+nohup socat udp-l:3456,reuseaddr,fork system:'echo hello-from-server',nofork
