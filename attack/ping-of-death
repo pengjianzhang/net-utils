@@ -1,0 +1,2 @@
+#!/bin/bash
+ping -s 65500 $1

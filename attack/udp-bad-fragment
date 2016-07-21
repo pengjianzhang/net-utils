@@ -1,0 +1,14 @@
+#!/bin/sh
+
+IP=$1
+PORT=$2
+
+#-x  --morefrag   set more fragments flag
+#-y  --dontfrag   set dont fragment flag
+#-g  --fragoff    set the fragment offset
+
+
+hping $IP --udp  -p $PORT  -x -y -c 1
+
+
+hping $IP --udp  -p $PORT   -y  -g 100 -c 1
