@@ -5,6 +5,7 @@ import posixpath
 import BaseHTTPServer
 import time
 import shutil
+import random
 
 
 
@@ -85,10 +86,45 @@ class myHTTPHandle(BaseHTTPRequestHandler):
         self.wfile.write(buf)
         f.close()
 
+    def __location(self,buf,url):
+
+        self.close_connection = True
+        self.send_response(302)
+#        self.send_response(200)
+        self.send_header('Content-type','text/html')
+        self.send_header('Content-Length',str(len(buf)))
+#        self.send_header('Location',"http://192.168.4.101:8000/a.txt")
+        self.send_header('Location',url)
+        self.end_headers()
+        self.wfile.write(buf)
+
+    def location(self,buf):
+        id = random.randint(0,5)
+        print id
+        urls = [
+        "http://10.80.5.163:9080/a.txt",        
+        "http://10.80.5.164:9080/a.txt",        
+        "http://10.80.5.164:9081/a.txt",        
+        "http://10.80.5.164:9082/a.txt",        
+        "http://10.80.5.168:9080/a.txt",        
+        "http://10.80.5.169:9081/a.txt",        
+        "http://10.80.5.169:9082/a.txt"]
+
+        self.__location(buf,urls[id])        
+
+
+    def hello_word(self):
+        self.protocol_version = "HTTP/1.1"
+        self.content_length(200,"hello,world\n")
+
+
     def do_GET(self):
 
         if self.path == "/100":
             self.c100()
+        elif self.path == "/location":
+            print "hi-----"
+            self.location("hello~~i~ii~iii~~~~~~~~~~\n")
         elif self.path == "/chunked" :
             self.chunked()
 
@@ -101,7 +137,7 @@ class myHTTPHandle(BaseHTTPRequestHandler):
             self.send_file()
 
 def start_server():
-    http_server = HTTPServer(('0.0.0.0', 8000), myHTTPHandle)
+    http_server = HTTPServer(('0.0.0.0', 80), myHTTPHandle)
     http_server.serve_forever()
 
 
