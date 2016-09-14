@@ -4,6 +4,7 @@ import time
 
 BUFSIZE=40960
 
+RATE=1000
 
 def http_request(ip,port,url):
     size = 0
@@ -43,11 +44,11 @@ def http_speed_1(ip,port,url, speed):
             if(spend >= 1):
                 print "speed is too high to handle"
             else:
-                if bits >= 1024*1024:
-                    bits = bits / (1024*1024)
+                if bits >= RATE*RATE:
+                    bits = bits / (RATE*RATE)
                     print bits,"MBit/s"
-                elif(bits >= 1024):
-                    bits = bits / 1024
+                elif(bits >= RATE):
+                    bits = bits / RATE
                     print bits,"KBit/s"
                 else:
                     print bits,"Bit/s"
@@ -63,13 +64,7 @@ def http_speed(ip,port,url, speed, timeout):
 
 
 def usage():
-    print sys.argv[0], " ip port url speed timeout(s)"
-    print ""
-    print "eg. " 
-    print "\t" ,sys.argv[0], " 192.168.4.22 80 /1.txt 1M 60"
-    print "\t" ,sys.argv[0], " 192.168.4.22 80 /1.txt 100K 60"
-
-
+    print sys.argv[0], " ip port url speed(K/M) timeout"
 
 if len(sys.argv) != 6:
     usage()
@@ -83,9 +78,9 @@ else:
     num,unit = int(speed[:-1]), speed[-1] #NUM K/M
 
     if((unit == 'K') or (unit == 'k')):
-        num = num * 1024
+        num = num * RATE
     elif((unit == 'M') or (unit == 'm')):
-        num = num * 1024 * 1024
+        num = num * RATE * RATE
     else:
         num = 0
         usage()
