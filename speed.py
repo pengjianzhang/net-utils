@@ -2,18 +2,15 @@ from socket import *
 import sys
 import time
 
-IP='192.168.4.22'
-PORT=80
-
 BUFSIZE=40960
 
-ADDR=(IP, PORT)
 
 def http_request(ip,port,url):
     size = 0
     request = "GET " + url +  " HTTP/1.0\r\nUser-Agent: python\r\nHost: " + ip +"\r\nAccept: */*\r\n\r\n"
 
 
+    ADDR=(ip,port)
     size = len(request)
 
     sk = socket(AF_INET, SOCK_STREAM)
