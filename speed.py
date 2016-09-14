@@ -63,7 +63,13 @@ def http_speed(ip,port,url, speed, timeout):
 
 
 def usage():
-    print sys.argv[0], " ip port url speed(K/M) timeout"
+    print sys.argv[0], " ip port url speed timeout(s)"
+    print ""
+    print "eg. " 
+    print "\t" ,sys.argv[0], " 192.168.4.22 80 /1.txt 1M 60"
+    print "\t" ,sys.argv[0], " 192.168.4.22 80 /1.txt 100K 60"
+
+
 
 if len(sys.argv) != 6:
     usage()
