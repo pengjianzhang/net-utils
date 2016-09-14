@@ -33,46 +33,40 @@ def http_speed_1(ip,port,url, speed):
     start = time.time()
     spend = 0
     bytes = 0
+    bits = 0
     while True:
         
-        size = http_request(ip,port,url)
-        bytes = bytes + size
+        bytes = http_request(ip,port,url)
+        bits = bytes * 8 + bits
 
-        if(bytes >= speed):
+        if(bits >= speed):
             end = time.time()
             spend = end - start
             
             if(spend >= 1):
                 print "speed is too high to handle"
             else:
-
-                if bytes > 1024*1024:
-                    bytes = bytes / (1024*1024)
-                    print bytes,"MB/s"
-                elif(bytes >= 1024):
-                    bytes = bytes / 1024
-                    print bytes,"KB/s"
+                if bits >= 1024*1024:
+                    bits = bits / (1024*1024)
+                    print bits,"MBit/s"
+                elif(bits >= 1024):
+                    bits = bits / 1024
+                    print bits,"KBit/s"
                 else:
-                    print bytes,"B/s"
+                    print bits,"Bit/s"
 
                 time.sleep( 1 - spend)
                 return
 
-
-
 def http_speed(ip,port,url, speed, timeout):
     
     for i in range(0, timeout):
-        print i
         http_speed_1(ip,port,url, speed)
     
 
 
 def usage():
-    print sys.argv[0], " ip port url speed timeout"
-
-
-print len(sys.argv)
+    print sys.argv[0], " ip port url speed(K/M) timeout"
 
 if len(sys.argv) != 6:
     usage()
@@ -83,8 +77,18 @@ else:
     speed   = sys.argv[4]
     timeout = sys.argv[5]
     
-#    print ip,port,url,speed,timeout
-    http_speed(ip,int(port),url, int(speed), int(timeout))
+    num,unit = int(speed[:-1]), speed[-1] #NUM K/M
+
+    if((unit == 'K') or (unit == 'k')):
+        num = num * 1024
+    elif((unit == 'M') or (unit == 'm')):
+        uum = num * 1024 * 1024
+    else:
+        num = 0
+        usage()
+
+    if num > 0:
+        http_speed(ip,int(port),url, num, int(timeout))
 
 
 
