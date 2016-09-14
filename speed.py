@@ -37,7 +37,7 @@ def http_speed_1(ip,port,url, speed):
     while True:
         
         bytes = http_request(ip,port,url)
-        bits = bytes * 8 + bits
+        bits = bytes * 8.0 + bits
 
         if(bits >= speed):
             end = time.time()
@@ -82,7 +82,7 @@ else:
     if((unit == 'K') or (unit == 'k')):
         num = num * 1024
     elif((unit == 'M') or (unit == 'm')):
-        uum = num * 1024 * 1024
+        num = num * 1024 * 1024
     else:
         num = 0
         usage()
