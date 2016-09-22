@@ -98,13 +98,43 @@ void sbuf_set()
     sbuf_len = strlen(sbuf);
 }
 
+
+static inline void process_request2(int fd)
+{
+    int i;
+    char * buf = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n";
+    char a[128];
+
+    send(fd,buf,strlen(buf),0);
+    for(i = 0; i < 1000; i++)
+    {
+        sprintf(a,"%d\t012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\n",i);
+        send(fd,a,strlen(a),0);
+        if(i % 100 == 0)
+        {
+            usleep(10000);
+        }
+
+    }    
+}
+
+
 static inline void process_request(int fd)
 {
     int len = recv(fd,rbuf,BUF_LEN,0);
 
     if(len > 0)
     {
-        len = send(fd,sbuf,sbuf_len,0);
+        rbuf[len] = 0;
+        if(strstr(rbuf,"/1.txt"))
+        {    
+            len = send(fd,sbuf,sbuf_len,0);
+        }
+        else
+        {
+            process_request2(fd);
+        }    
+
         event_free(fd);
     }
 }
