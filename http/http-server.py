@@ -34,13 +34,26 @@ class myHTTPHandle(BaseHTTPRequestHandler):
 
     def chunked(self):
         self.protocol_version = "HTTP/1.1"
-        buf = '6\r\n11111\n\r\n6\r\n22222\n\r\n0\r\n\r\n'
+        buf = '6;  asdjlf\r\n11111\n\r\n6\r\n22222\n\r\n0\r\n'
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.send_header("Transfer-Encoding", "chunked")
         self.set_keepalive()
         self.end_headers()
         self.wfile.write(buf)
+
+
+    def freelen(self):
+        self.protocol_version = "HTTP/1.1"
+        buf = 'aaaaaaaaa\nbbbbbbbbbbbbbbbbbbbbb\n'
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Connection", "close")
+#        self.set_keepalive()
+        self.end_headers()
+        self.wfile.write(buf)
+
+
 
     def content_length(self,code,buf):
         clen = len(buf)
@@ -133,16 +146,20 @@ class myHTTPHandle(BaseHTTPRequestHandler):
 
         elif self.path == "/favicon.ico":
             self.send_file()
+        elif self.path == "/freelen": 
+            self.freelen()
         else :
             self.send_file()
 
-def start_server():
-    http_server = HTTPServer(('0.0.0.0', 80), myHTTPHandle)
+def start_server(ip,port):
+    http_server = HTTPServer((ip,port), myHTTPHandle)
     http_server.serve_forever()
 
 
 
-
-start_server()
+if len(sys.argv) != 2:
+    print "Usage: ", sys.argv[0], " ip port\n"
+else:
+    start_server(sys.argv[1],int(sys.argv[2]))
 
 
