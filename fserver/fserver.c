@@ -118,6 +118,53 @@ static inline void process_request2(int fd)
     }    
 }
 
+int fsize(const char* path) 
+{ 
+    struct stat buff; 
+    if(stat(path, &buff) == 0) 
+    { 
+        return buff.st_size; 
+    } 
+    else 
+    { 
+        return -1; 
+    } 
+} 
+
+char * sendfile_path = NULL;
+static inline void process_sendfile(int fd, char * path)
+{
+    int rfd = open(path,O_RDONLY);
+    int len;
+    off_t offset = 0;
+    int count = fsize(path);
+    int num;
+
+    if(rfd < 0)
+    {
+        return ;
+    }
+    while(count > 0)
+    {    
+        num = sendfile(fd, rfd, &offset, count);
+        if(num > 0)
+        {
+            count -= num;
+        }
+        else
+        {
+            if(errno ==  EAGAIN )
+            {
+                usleep(10000);
+            }
+            else
+            {    
+                break;
+            }
+        }    
+    }
+
+}
 
 static inline void process_request(int fd)
 {
@@ -129,6 +176,10 @@ static inline void process_request(int fd)
         if(strstr(rbuf,"/1.txt"))
         {    
             len = send(fd,sbuf,sbuf_len,0);
+        }
+        else if((sendfile_path != NULL) &&  strstr(rbuf,"/sendfile"))
+        {
+            process_sendfile(fd, sendfile_path);
         }
         else
         {
@@ -192,6 +243,7 @@ int __start_server(char * ip, int port)
     int domain = PF_INET;
     int socklen = sizeof(struct sockaddr_in);
     struct sockaddr_in * p = (struct sockaddr_in *)&my_addr;
+    int one = 1;
 
     bzero(&my_addr, sizeof(my_addr));  
 
@@ -200,6 +252,8 @@ int __start_server(char * ip, int port)
     p->sin_addr.s_addr = inet_addr(ip);  
 
     fd = socket(domain,type,0);
+
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
     if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
     {
@@ -237,8 +291,13 @@ void event_init()
 
 int main(int argc, char ** argv)
 {
-    if(argc == 3)
-    {     
+    if(argc >= 3)
+    {   
+        if(argc >= 4)
+        {    
+            sendfile_path = argv[3];
+        }
+
         sbuf_set();
         event_init();
         start_server(argv[1], argv[2]);
@@ -246,7 +305,7 @@ int main(int argc, char ** argv)
     }
     else
     {
-        printf("%s ip port\n",argv[0]);
+        printf("%s ip port [sendfile_path]\n",argv[0]);
     } 
 
     return 0;
