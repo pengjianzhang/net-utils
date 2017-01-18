@@ -1,7 +1,10 @@
 #include <stdio.h>
 
+char * trailer= "Last-Modified: Mon, 25 Jul 2016 11:12:33 GMT\r\nContent-Type: text/html; charset=UTF-8\r\n";
 
-char * common = "HTTP/1.1 200 OK\r\nDate: Fri, 23 Sep 2016 09:13:40 GMT\r\nServer: Fserver\r\nLast-Modified: Fri, 31 Jul 2015 00:06:58 GMT\r\nAccept-Ranges: bytes\r\nContent-Type: text/html; charset=UTF-8\r\n";
+
+//char * common = "HTTP/1.1 200 OK\r\nDate: Fri, 23 Sep 2016 09:13:40 GMT\r\nServer: Fserver\r\nLast-Modified: Fri, 31 Jul 2015 00:06:58 GMT\r\nAccept-Ranges: bytes\r\nContent-Type: text/html; charset=UTF-8\r\n";
+char * common = "HTTP/1.1 200 OK\r\nDate: Fri, 23 Sep 2016 09:13:40 GMT\r\nServer: Fserver\r\nAccept-Ranges: bytes\r\n";
 int colum = 50;
 char buf[1024]; 
 
@@ -81,14 +84,19 @@ int gen_body(int len, int end)
 
 void gen_chunk(int len)
 {
-    printf("%08x\r\n",len);
-    gen_body(len, 0);
-    printf("\r\n");
-/*
-    printf("0\r\n");
-    printf("\r\n");
-  */ 
+    printf("%08x ;a=b; name=value0; name2=\"string2\"\r\n",len);
+    if(len > 0)
+    {    
+        gen_body(len, 0);
+        printf("\r\n");
+    }
 }
+
+void gen_trailer()
+{
+    printf("%s",trailer);
+}
+
 
 
 void gen_html_chunked(int chunk_num, int chunk_len)
@@ -112,6 +120,8 @@ void gen_html_chunked(int chunk_num, int chunk_len)
         {
             gen_chunk(chunk_len);
         }
+
+        gen_chunk(0);
     }
     else
     {
@@ -120,7 +130,12 @@ void gen_html_chunked(int chunk_num, int chunk_len)
             len = a[i % 10];
             gen_chunk(len);
         }
+
+        gen_chunk(0);
     }
+
+    gen_trailer();
+    printf("\r\n");
 }
 
 int gen_html_content_length(int len)
