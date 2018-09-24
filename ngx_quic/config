@@ -1,0 +1,13 @@
+ngx_addon_name=ngx_quic_module
+
+SRCS="$ngx_addon_dir/ngx_quic_module.c $ngx_addon_dir/crypto.c $ngx_addon_dir/ngx_quic_util.c $ngx_addon_dir/ngx_quic_pkt.c"
+
+DEPS=""
+
+
+HTTP_MODULES="$HTTP_MODULES ngx_quic_module"
+HTTP_INCS="$HTTP_INCS $ngx_addon_dir/"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $SRCS"
+NGX_ADDON_DEPS="$NGX_ADDON_DEPS $DEPS"
+
+have=NGX_PING . auto/have
