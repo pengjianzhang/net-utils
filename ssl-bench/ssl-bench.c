@@ -63,6 +63,7 @@ int connect_server(struct sockaddr_in * addr)
     SSL_set_fd(ssl,fd);
 
     if(SSL_connect(ssl)==-1) {
+        printf("ssl connect error\n");
         goto out;            
     }
 
@@ -73,6 +74,8 @@ int connect_server(struct sockaddr_in * addr)
         if(len > 0) {
             rsp[len] = 0;
             printf("%s\n",rsp);    
+        } else {
+            printf("error\n");    
         }
     }
     
