@@ -1,15 +1,16 @@
-#include <stdio.h>   
-#include <unistd.h>   
-#include <stdlib.h> 
-#include <errno.h>   
-#include <string.h>   
-#include <sys/types.h>   
-#include <netinet/in.h>   
-#include <sys/socket.h>   
-#include <sys/wait.h>   
-#include <unistd.h>   
-#include <arpa/inet.h>   
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <sys/time.h>
 
 struct sockaddr_storage g_addr;
 
@@ -17,17 +18,42 @@ struct sockaddr_storage g_addr;
 
 char buf[BUF_LEN + 1];
 
-void client_func(int fd)
+
+static void client_request(int fd, int timming)
 {
     char * msg = "hello,server~~";
     int len;
+    struct timeval tv_last;
+    struct timeval tv;
+    uint64_t us;
+    float ms;
 
+    gettimeofday(&tv_last, NULL);
     sendto(fd, msg, strlen(msg), 0,(struct sockaddr *)&g_addr, sizeof(g_addr));
     len = recv(fd, buf, BUF_LEN, 0);
+    gettimeofday(&tv, NULL);
 
+    us = (tv.tv_sec - tv_last.tv_sec)* 1000 *1000 + tv.tv_usec - tv_last.tv_usec;
+    ms = us *1.0/ 1000;
+    if (timming) {
+        printf("%0.4f ms\n", ms);
+    }
     if(len > 0){
         buf[len] = 0;
         printf("%s\n",buf);
+    }
+}
+
+void client_func(int fd, int timming)
+{
+    int i = 0;
+
+    for (i = 0; i < 10; i++) {
+        client_request(fd, timming);
+        if (!timming) {
+            break;
+        }
+        sleep(1);
     }
 }
 
@@ -40,9 +66,9 @@ void server_loop(int fd)
     while(1){
         slen = sizeof(struct sockaddr_storage);
         len = recvfrom(fd,buf,BUF_LEN,0,  (struct sockaddr*)&guest,&slen);
-        
+
         if (len > 0) {
-            sendto(fd,buf, len,0,  (struct sockaddr*)&guest,slen);    
+            sendto(fd,buf, len,0,  (struct sockaddr*)&guest,slen);
         }
     }
 }
@@ -62,8 +88,8 @@ int set_socket_opt(int fd, int level)
     }
 */
     #ifndef SO_REUSEPORT
-    #define SO_REUSEPORT 15 
-    #endif  
+    #define SO_REUSEPORT 15
+    #endif
 
    ret = setsockopt(fd, level, SO_REUSEPORT, &one, sizeof(one));
     if(ret != 0) {
@@ -84,17 +110,17 @@ int sock_addr_set(struct sockaddr_storage *addr, char * ip, char * port_str)
 
     port = htons(atoi(port_str));
 
-    bzero(addr, sizeof(struct sockaddr_storage));  
-    if(strchr(ip,'.')){   
+    bzero(addr, sizeof(struct sockaddr_storage));
+    if(strchr(ip,'.')){
         p4->sin_family = AF_INET;
-        p4->sin_port = port;    
-        p4->sin_addr.s_addr = inet_addr(ip);  
+        p4->sin_port = port;
+        p4->sin_addr.s_addr = inet_addr(ip);
         return AF_INET;
     } else {
-        p6->sin6_family = AF_INET6;      
-        p6->sin6_port = port;      
+        p6->sin6_family = AF_INET6;
+        p6->sin6_port = port;
         inet_pton(AF_INET6, ip, &(p6->sin6_addr));
-        return AF_INET6; 
+        return AF_INET6;
     }
 }
 
@@ -102,7 +128,7 @@ int socket_set_server(int fd)
 {
     int socklen,level;
     int domain = g_addr.ss_family;
-    
+
     if(domain == AF_INET) {
         level = SOL_SOCKET;
         socklen = sizeof(struct sockaddr_in);
@@ -115,11 +141,11 @@ int socket_set_server(int fd)
         goto err;
     }
 
-    if (bind(fd, (struct sockaddr *)&g_addr, socklen) == -1) {  
+    if (bind(fd, (struct sockaddr *)&g_addr, socklen) == -1) {
         goto err;
-    } 
+    }
 
-   
+
     return fd;
 err:
     close(fd);
@@ -131,7 +157,7 @@ void usage()
     printf("usage:\n\t./server ip port [-d|-c]\n");
 }
 
-int arg_contain(int argc, char **argv, char * str)  
+int arg_contain(int argc, char **argv, char * str)
 {
     int i;
 
@@ -146,22 +172,26 @@ int arg_contain(int argc, char **argv, char * str)
     return 0;
 }
 
-//there will be 2 arguments:certificate,private_key
-int main(int argc, char **argv)  
+int main(int argc, char **argv)
 {
     int fd,domain;
     int client = 0;
+    int timming = 0;
 
     if(argc < 2)
     {
         usage();
         return 1;
     }
- 
-    if(arg_contain(argc, argv, "-c")) {    
+
+    if(arg_contain(argc, argv, "-c")) {
         client = 1;
-    } else if(arg_contain(argc, argv, "-d")) {    
+    } else if(arg_contain(argc, argv, "-d")) {
         daemon(0,0);
+    }
+
+    if(arg_contain(argc, argv, "-t")) {
+        timming = 1;
     }
 
     domain = sock_addr_set(&g_addr, argv[1], argv[2]);
@@ -169,16 +199,14 @@ int main(int argc, char **argv)
 
     if(fd >= 0) {
         if(client) {
-            client_func(fd);
+            client_func(fd, timming);
         } else {
             if(socket_set_server(fd) > 0) {
                 server_loop(fd);
             }
         }
 
-        close(fd);  
+        close(fd);
     }
-    return 0;  
-}  
-  
- 
+    return 0;
+}
