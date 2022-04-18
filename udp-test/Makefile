@@ -1,11 +1,11 @@
-all: test
+all: udp-test
 
 
-test: test.c
-	gcc -Wall -O3 -g test.c -o test
+udp-test: udp-test.c
+	gcc -Wall -O3 -g udp-test.c -o udp-test
 
 clean:
-	rm -f test *.o
+	rm -f udp-test *.o
 
 
 

@@ -18,27 +18,15 @@ struct sockaddr_storage g_addr;
 
 char buf[BUF_LEN + 1];
 
-
-static void client_request(int fd, int timming)
+static inline void client_request(int fd, int print)
 {
     char * msg = "hello,server~~";
     int len;
-    struct timeval tv_last;
-    struct timeval tv;
-    uint64_t us;
-    float ms;
 
-    gettimeofday(&tv_last, NULL);
     sendto(fd, msg, strlen(msg), 0,(struct sockaddr *)&g_addr, sizeof(g_addr));
     len = recv(fd, buf, BUF_LEN, 0);
-    gettimeofday(&tv, NULL);
 
-    us = (tv.tv_sec - tv_last.tv_sec)* 1000 *1000 + tv.tv_usec - tv_last.tv_usec;
-    ms = us *1.0/ 1000;
-    if (timming) {
-        printf("%0.4f ms\n", ms);
-    }
-    if(len > 0){
+    if((print) && (len > 0)){
         buf[len] = 0;
         printf("%s\n",buf);
     }
@@ -47,13 +35,27 @@ static void client_request(int fd, int timming)
 void client_func(int fd, int timming)
 {
     int i = 0;
+    struct timeval tv_last;
+    struct timeval tv;
+    uint64_t us;
+    float ms;
+    int n = 100000;
 
-    for (i = 0; i < 10; i++) {
-        client_request(fd, timming);
-        if (!timming) {
-            break;
-        }
-        sleep(1);
+    if (!timming) {
+        client_request(fd, 1);
+        return;
+    }
+
+    gettimeofday(&tv_last, NULL);
+    for (i = 0; i < n; i++) {
+        client_request(fd, 0);
+    }
+    gettimeofday(&tv, NULL);
+
+    us = (tv.tv_sec - tv_last.tv_sec)* 1000 *1000 + tv.tv_usec - tv_last.tv_usec;
+    ms = us *1.0 / (1000 * n);
+    if (timming) {
+        printf("%0.4f ms\n", ms);
     }
 }
 
@@ -72,8 +74,6 @@ void server_loop(int fd)
         }
     }
 }
-
-
 
 int set_socket_opt(int fd, int level)
 {
