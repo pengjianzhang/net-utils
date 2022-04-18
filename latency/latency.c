@@ -54,12 +54,31 @@ int server_listen(const char *addr)
 {
     int fd = 0;
     int af = 0;
+    int ret = 0;
     struct sockaddr_storage saddr;
+    int len = sizeof(struct sockaddr_storage);
 
     af = socket_addr(&saddr, addr);
+    if (af == AF_UNIX) {
+        len = sizeof(struct sockaddr_un);
+    }
     fd = socket(af, SOCK_STREAM, 0);
-    bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
-    listen(fd, 5);
+    if (fd < 0) {
+        printf("create socket error\n");
+        return -1;
+    }
+    ret = bind(fd, (struct sockaddr *)&saddr, len);
+    if (ret != 0) {
+        printf("bind error\n");
+        close(fd);
+        return -1;
+    }
+    ret = listen(fd, 5);
+    if (ret != 0) {
+        close(fd);
+        printf("listen error\n");
+        return -1;
+    }
     return fd;
 }
 
@@ -80,11 +99,22 @@ void server_loop(int fd)
 void server_run(const char *addr)
 {
     int fd = 0;
+    int un = 0;
 
-    unlink(addr);
+    if (strchr(addr, '/') != NULL) {
+        un = 1;
+    }
+
+    if (un) {
+        unlink(addr);
+    }
+
     fd = server_listen(addr);
     server_loop(fd);
-    unlink(addr);
+
+    if (un) {
+        unlink(addr);
+    }
 }
 
 int client_connect(const char *addr)
@@ -92,10 +122,14 @@ int client_connect(const char *addr)
     int fd = 0;
     int af = 0;
     struct sockaddr_storage saddr;
+    int len = sizeof(struct sockaddr_storage);
 
     af = socket_addr(&saddr, addr);
+    if (af == AF_UNIX) {
+        len = sizeof(struct sockaddr_un);
+    }
     fd = socket(af, SOCK_STREAM, 0);
-    if(connect(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0)  {
+    if(connect(fd, (struct sockaddr *)&saddr, len) < 0)  {
         return -1;
     }
 
