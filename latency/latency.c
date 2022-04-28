@@ -30,7 +30,7 @@ char rsp_buf[BUF_SIZE] =
 "\r\n"
 "nginx server\n";
 
-int socket_addr(struct sockaddr_storage *addr, const char *str)
+int socket_addr(struct sockaddr_storage *addr, const char *str, int port)
 {
     struct sockaddr_un *un = (struct sockaddr_un *)addr;
     struct sockaddr_in  *p4 = (struct sockaddr_in *)addr;
@@ -48,18 +48,18 @@ int socket_addr(struct sockaddr_storage *addr, const char *str)
         return AF_UNIX;
     } else if (strchr(str, ':') != NULL) {
         p6->sin6_family = AF_INET6;
-        p6->sin6_port = htons(80);
+        p6->sin6_port = htons(port);
         inet_pton(AF_INET6, str, &(p6->sin6_addr));
         return AF_INET6;
     } else {
         p4->sin_family = AF_INET;
-        p4->sin_port = htons(80);
+        p4->sin_port = htons(port);
         p4->sin_addr.s_addr = inet_addr(str);
         return AF_INET;
     }
 }
 
-static int server_listen(const char *addr, int udp)
+static int server_listen(const char *addr, int port, int udp)
 {
     int fd = 0;
     int af = 0;
@@ -67,7 +67,7 @@ static int server_listen(const char *addr, int udp)
     struct sockaddr_storage saddr;
     int len = sizeof(struct sockaddr_storage);
 
-    af = socket_addr(&saddr, addr);
+    af = socket_addr(&saddr, addr, port);
     if (af == AF_UNIX) {
         len = sizeof(struct sockaddr_un);
     }
@@ -133,7 +133,7 @@ static void udp_server_loop(int fd)
     }
 }
 
-void server_run(const char *addr, int udp)
+void server_run(const char *addr, int port, int udp)
 {
     int fd = 0;
     int un = 0;
@@ -146,7 +146,7 @@ void server_run(const char *addr, int udp)
         unlink(addr);
     }
 
-    fd = server_listen(addr, udp);
+    fd = server_listen(addr, port, udp);
     if (udp) {
         udp_server_loop(fd);
     } else {
@@ -158,14 +158,14 @@ void server_run(const char *addr, int udp)
     }
 }
 
-static int client_connect(const char *addr, int udp)
+static int client_connect(const char *addr, int port, int udp)
 {
     int fd = 0;
     int af = 0;
     struct sockaddr_storage saddr;
     int len = sizeof(struct sockaddr_storage);
 
-    af = socket_addr(&saddr, addr);
+    af = socket_addr(&saddr, addr, port);
     if (af == AF_UNIX) {
         len = sizeof(struct sockaddr_un);
     }
@@ -210,11 +210,11 @@ static void client_request_end(int n)
 
 }
 
-void client_run(const char *addr, int n, int udp)
+void client_run(const char *addr, int port, int n, int udp)
 {
     int fd = 0;
 
-    fd = client_connect(addr, udp);
+    fd = client_connect(addr, port, udp);
     client_request_start();
     client_loop(fd, n);
     client_request_end(n);
@@ -225,8 +225,8 @@ void client_run(const char *addr, int n, int udp)
 static void usage(void)
 {
     printf("Usage:\n");
-    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path \n");
-    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path --number|-n number\n");
+    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port]\n");
+    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] --number|-n number \n");
 }
 
 static struct option g_options[] = {
@@ -235,18 +235,20 @@ static struct option g_options[] = {
     {"server", required_argument, NULL, 's'},
     {"client", required_argument, NULL, 'c'},
     {"number", required_argument, NULL, 'n'},
+    {"port", required_argument, NULL, 'p'},
     {NULL, 0, NULL, 0}
 };
 
 #define ADDR_SIZE    108
 int main(int argc, char *argv[])
 {
+    int port = 80;
     int udp = 0;
     int num = 0;
     int server = 0;
     int client = 0;
     int opt = 0;
-    const char *optstr = "hus:c:n:";
+    const char *optstr = "hus:c:n:p:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -267,6 +269,12 @@ int main(int argc, char *argv[])
             case 'n':
                 num = atoi(optarg);
                 if (num <= 0) {
+                    goto err;
+                }
+                break;
+            case 'p':
+                port = atoi(optarg);
+                if ((port <= 0) || (port >= 65536)) {
                     goto err;
                 }
                 break;
@@ -294,9 +302,9 @@ int main(int argc, char *argv[])
     }
 
     if (client) {
-        client_run(addr, num, udp);
+        client_run(addr, port, num, udp);
     } else {
-        server_run(addr, udp);
+        server_run(addr, port, udp);
     }
 
     return 0;
