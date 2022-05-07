@@ -10,6 +10,7 @@
 
 struct timeval tv_last;
 struct timeval tv;
+int g_show = 0;
 
 
 #define BUF_SIZE    2048
@@ -29,6 +30,14 @@ char rsp_buf[BUF_SIZE] =
 "Connection: keep-alive\r\n"
 "\r\n"
 "nginx server\n";
+
+static inline void show(char *buf, int len)
+{
+    if (g_show && (len > 0)) {
+        buf[len] = 0;
+        printf("%s\n", buf);
+    }
+}
 
 int socket_addr(struct sockaddr_storage *addr, const char *str, int port)
 {
@@ -109,6 +118,7 @@ void server_loop(int fd)
     int len = strlen(rsp_buf);
     while ((cfd = accept(fd, NULL, NULL)) > 0) {
         while((ret = recv(cfd, req_buf, BUF_SIZE, 0)) > 0) {
+            show(req_buf, ret);
             send(cfd, rsp_buf, len, 0);
         }
         close(cfd);
@@ -128,6 +138,7 @@ static void udp_server_loop(int fd)
     while(1){
         ret = recvfrom(fd, req_buf, BUF_SIZE, 0,  (struct sockaddr*)&guest, &slen);
         if (ret > 0) {
+            show(req_buf, ret);
             sendto(fd, rsp_buf, len, 0,  (struct sockaddr*)&guest, slen);
         }
     }
@@ -187,11 +198,13 @@ void client_loop(int fd, int n)
 {
     int i;
     int len = 0;
+    int ret = 0;
 
     len = strlen(req_buf);
     for (i = 0; i < n; i++) {
         send(fd, req_buf, len, 0);
-        recv(fd, rsp_buf, BUF_SIZE, 0);
+        ret = recv(fd, rsp_buf, BUF_SIZE, 0);
+        show(rsp_buf, ret);
     }
 }
 
@@ -225,8 +238,8 @@ void client_run(const char *addr, int port, int n, int udp)
 static void usage(void)
 {
     printf("Usage:\n");
-    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port]\n");
-    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] --number|-n number \n");
+    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port] [--show|-o]\n");
+    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] --number|-n number [--show|-o]\n");
 }
 
 static struct option g_options[] = {
@@ -236,6 +249,7 @@ static struct option g_options[] = {
     {"client", required_argument, NULL, 'c'},
     {"number", required_argument, NULL, 'n'},
     {"port", required_argument, NULL, 'p'},
+    {"show", no_argument, NULL, 'o'},
     {NULL, 0, NULL, 0}
 };
 
@@ -248,7 +262,7 @@ int main(int argc, char *argv[])
     int server = 0;
     int client = 0;
     int opt = 0;
-    const char *optstr = "hus:c:n:p:";
+    const char *optstr = "huos:c:n:p:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -277,6 +291,9 @@ int main(int argc, char *argv[])
                 if ((port <= 0) || (port >= 65536)) {
                     goto err;
                 }
+                break;
+            case 'o':
+                g_show = 1;
                 break;
             case 'u':
                 udp = 1;
