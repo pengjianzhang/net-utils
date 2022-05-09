@@ -1,13 +1,13 @@
 #!/usr/bin/env python
- 
+
 import httplib
 import sys
 import time
 import threading
 
- 
- 
-def session(httpClient, url):    
+
+
+def session(httpClient, url):
 
     body = ""
     headers = {
@@ -64,11 +64,11 @@ class Client(threading.Thread):
         self.setDaemon(True)
     def run(self):
         request(self.req_num, self.repeat,self.ip)
-   
+
 def multi_thread(t_n,req_num,repeat,ip):
     threads = []
     for i in range(t_n):
-        new_t = Client(req_num,repeat,ip) 
+        new_t = Client(req_num,repeat,ip)
         threads.append(new_t)
 
     for i in threads:

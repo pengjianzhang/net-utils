@@ -1,10 +1,10 @@
 #!/usr/bin/env python
- 
+
 import httplib
 import sys
- 
- 
-def session(httpClient):    
+
+
+def session(httpClient):
 
     url = raw_input("URL: ")
     conn = raw_input("Keep-Alive(y/n): ")
@@ -34,7 +34,7 @@ def session(httpClient):
 
 def request(srv):
     httpClient = None
-    
+
     try:
         httpClient = httplib.HTTPConnection(srv, 80,timeout=30)
         while True:
