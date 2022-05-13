@@ -3,7 +3,6 @@
 #include <signal.h>
 #include <event2/event.h>
 #include <event2/http.h>
-#include <event2/listener.h>
 #include <event2/buffer.h>
 
 static void zero_cb(struct evhttp_request *req, void *arg)
