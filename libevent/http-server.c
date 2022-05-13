@@ -42,11 +42,8 @@ static void do_term(int sig, short events, void *arg)
 
 int main(int argc, char **argv)
 {
-	struct event_config *cfg = NULL;
 	struct event_base *base = NULL;
 	struct evhttp *http = NULL;
-	struct evhttp_bound_socket *handle = NULL;
-	struct evconnlistener *lev = NULL;
 	struct event *term = NULL;
 	int ret = 0;
     struct timeval tval;
@@ -59,17 +56,10 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	cfg = event_config_new();
-    if (!cfg) {
-        goto err;
-    }
-
-	base = event_base_new_with_config(cfg);
+	base = event_base_new();
 	if (!base) {
         goto err;
 	}
-	event_config_free(cfg);
-	cfg = NULL;
 
 	http = evhttp_new(base);
 	if (!http) {
@@ -79,8 +69,7 @@ int main(int argc, char **argv)
 	evhttp_set_cb(http, "/zero", zero_cb, NULL);
 	evhttp_set_cb(http, "/404",  notfound_cb, NULL);
 	evhttp_set_gencb(http, default_cb, NULL);
-    handle = evhttp_bind_socket_with_handle(http, "127.0.0.1", 6000);
-    if (!handle) {
+    if (evhttp_bind_socket(http, "127.0.0.1", 6000) != 0) {
         goto err;
     }
 
@@ -103,10 +92,6 @@ int main(int argc, char **argv)
     }
 
 err:
-	if (cfg) {
-		event_config_free(cfg);
-    }
-
 	if (http) {
 		evhttp_free(http);
     }
