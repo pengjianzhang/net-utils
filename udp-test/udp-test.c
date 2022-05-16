@@ -26,15 +26,41 @@ int g_list;
 void msg_set(int size)
 {
     int i = 0;
-    for (i = 0; i < size; i++) {
-        msg[i] = 'a';
-        if ((i > 0) && (i % 10 == 0)) {
-            msg[i] = '\n';
-        }
+    int j = 0;
+    int line = 0;
+    char str[200];
+    int col = 100;
+    int pad = 0;
+
+    if (size<2) {
+        size = 2;
     }
-    msg[i - 1] = '=';
-    msg[i] = 0;
-    msg_len = i;
+
+    line = size / col;
+    pad = size - line * col;
+
+    for (i = 0; i < line; i++) {
+        sprintf(str, "%-8d", i * col);
+        for (j = 8; j < col; j++) {
+            str[j] = 'a';
+        }
+        str[j - 1] = '\n';
+        str[j] = 0;
+        strcat(msg, str);
+    }
+    if (pad > 0) {
+        for (i = 0; i < pad; i++) {
+            str[i] = 'b';
+        }
+        str[i] = 0;
+        strcat(msg, str);
+    }
+
+    if (size > 1) {
+        msg[size -1] = '=';
+    }
+
+    msg_len = size;
 }
 
 static void show_info(char *b, int len)
