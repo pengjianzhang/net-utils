@@ -11,66 +11,73 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <getopt.h>
 
 struct sockaddr_storage g_addr;
 
-#define BUF_LEN (1024*2)
+#define BUF_LEN (1024*128)
 
 char buf[BUF_LEN + 1];
+char msg[BUF_LEN];
+int msg_len = 0;
+int g_show;
+int g_list;
 
-static inline void client_request(int fd, int print)
-{
-    char * msg = "hello,server~~";
-    int len;
-
-    sendto(fd, msg, strlen(msg), 0,(struct sockaddr *)&g_addr, sizeof(g_addr));
-    len = recv(fd, buf, BUF_LEN, 0);
-
-    if((print) && (len > 0)){
-        buf[len] = 0;
-        printf("%s\n",buf);
-    }
-}
-
-void client_func(int fd, int timming)
+void msg_set(int size)
 {
     int i = 0;
-    struct timeval tv_last;
-    struct timeval tv;
-    uint64_t us;
-    float ms;
-    int n = 100000;
-
-    if (!timming) {
-        client_request(fd, 1);
-        return;
+    for (i = 0; i < size; i++) {
+        msg[i] = 'a';
+        if ((i > 0) && (i % 10 == 0)) {
+            msg[i] = '\n';
+        }
     }
+    msg[i - 1] = '=';
+    msg[i] = 0;
+    msg_len = i;
+}
 
-    gettimeofday(&tv_last, NULL);
-    for (i = 0; i < n; i++) {
-        client_request(fd, 0);
-    }
-    gettimeofday(&tv, NULL);
-
-    us = (tv.tv_sec - tv_last.tv_sec)* 1000 *1000 + tv.tv_usec - tv_last.tv_usec;
-    ms = us *1.0 / (1000 * n);
-    if (timming) {
-        printf("%0.4f ms\n", ms);
+static void show_info(char *b, int len)
+{
+    if (len > 0) {
+        if (g_list) {
+            printf("recv %d\n", len);
+        }
+        if (g_show) {
+            b[len] = 0;
+            printf("%s\n", b);
+        }
     }
 }
 
-void server_loop(int fd)
+static inline void client_request(int fd)
+{
+    int len = 0;
+
+    sendto(fd, msg, msg_len, 0,(struct sockaddr *)&g_addr, sizeof(g_addr));
+    len = recv(fd, buf, BUF_LEN, 0);
+    show_info(buf, len);
+}
+
+void client_run(int fd, int size)
+{
+    msg_set(size);
+    client_request(fd);
+}
+
+void server_run(int fd)
 {
     struct sockaddr_storage guest;
     socklen_t slen;
-    int len;
+    int len = 0;
 
     while(1){
         slen = sizeof(struct sockaddr_storage);
-        len = recvfrom(fd,buf,BUF_LEN,0,  (struct sockaddr*)&guest,&slen);
+        len = recvfrom(fd, buf, BUF_LEN, 0,  (struct sockaddr*)&guest, &slen);
 
         if (len > 0) {
-            sendto(fd,buf, len,0,  (struct sockaddr*)&guest,slen);
+            show_info(buf, len);
+            sendto(fd, buf, len, 0,  (struct sockaddr*)&guest, slen);
         }
     }
 }
@@ -82,11 +89,6 @@ int set_socket_opt(int fd, int level)
 
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
-/*
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
-        return 0;
-    }
-*/
     #ifndef SO_REUSEPORT
     #define SO_REUSEPORT 15
     #endif
@@ -102,13 +104,12 @@ int set_socket_opt(int fd, int level)
     return 1;
 }
 
-int sock_addr_set(struct sockaddr_storage *addr, char * ip, char * port_str)
+int sock_addr_set(struct sockaddr_storage *addr, char * ip,  int port)
 {
     struct sockaddr_in      *p4 = (struct sockaddr_in *)addr;
     struct sockaddr_in6     *p6 = (struct sockaddr_in6 *)addr;
-    int port;
 
-    port = htons(atoi(port_str));
+    port = htons(port);
 
     bzero(addr, sizeof(struct sockaddr_storage));
     if(strchr(ip,'.')){
@@ -145,7 +146,6 @@ int socket_set_server(int fd)
         goto err;
     }
 
-
     return fd;
 err:
     close(fd);
@@ -154,55 +154,107 @@ err:
 
 void usage()
 {
-    printf("usage:\n\t./server ip port [-d|-c]\n");
+    printf("usage:\n\t./udp-test --client|--server --ip|-i IP  --port|-p PORT --size|-n SIZE [--show|-o] [--list|-l] [--daemon|-d]\n");
 }
 
-int arg_contain(int argc, char **argv, char * str)
-{
-    int i;
-
-    for(i = 0; i < argc; i++)
-    {
-        if(strcmp(argv[i],str) == 0)
-        {
-            return 1;
-        }
-    }
-
-    return 0;
-}
+static struct option g_options[] = {
+    {"help", no_argument, NULL, 'h'},
+    {"server", required_argument, NULL, 's'},
+    {"client", required_argument, NULL, 'c'},
+    {"size", required_argument, NULL, 'n'},
+    {"ip", required_argument, NULL, 'i'},
+    {"port", required_argument, NULL, 'p'},
+    {"show", no_argument, NULL, 'o'},
+    {"daemon", no_argument, NULL, 'd'},
+    {"list", no_argument, NULL, 'l'},
+    {NULL, 0, NULL, 0}
+};
 
 int main(int argc, char **argv)
 {
-    int fd,domain;
+    int fd = 0;
+    int domain = 0;
     int client = 0;
-    int timming = 0;
+    int server = 0;
+    int d = 0;
+    int port = 0;
+    int opt = 0;
+    int size = 0;
+    char addr[128] = {0};
 
-    if(argc < 2)
-    {
+    const char *optstr = "hdoscn:i:p:";
+
+    if (argc == 1) {
         usage();
         return 1;
     }
 
-    if(arg_contain(argc, argv, "-c")) {
-        client = 1;
-    } else if(arg_contain(argc, argv, "-d")) {
-        daemon(0,0);
+    while ((opt = getopt_long_only(argc, argv, optstr, g_options, NULL)) != -1) {
+        switch (opt) {
+            case 'c':
+                client = 1;
+                break;
+            case 's':
+                server = 1;
+                break;
+            case 'n':
+                size = atoi(optarg);
+                if ((size <= 0) || (size >= BUF_LEN)) {
+                    return 1;
+                }
+                break;
+            case 'p':
+                port = atoi(optarg);
+                if ((port <= 0) || (port >= 65536)) {
+                    return 1;
+                }
+                break;
+            case 'i':
+                strcpy(addr, optarg);
+                break;
+            case 'o':
+                g_show = 1;
+                break;
+            case 'l':
+                g_list = 1;
+                break;
+            case 'h':
+                usage();
+                return 0;
+            case 'd':
+                d = 1;
+                break;
+            default:
+                return 1;
+        }
     }
 
-    if(arg_contain(argc, argv, "-t")) {
-        timming = 1;
+    if (client == server) {
+        return 1;
     }
 
-    domain = sock_addr_set(&g_addr, argv[1], argv[2]);
-    fd = socket(domain,SOCK_DGRAM,0);
+    if (port == 0) {
+        return 1;
+    }
+
+    if (size == 0) {
+        size = 10;
+    }
+
+    domain = sock_addr_set(&g_addr, addr, port);
+
+    if (d) {
+        daemon(0, 0);
+    }
+
+    fd = socket(domain, SOCK_DGRAM, 0);
 
     if(fd >= 0) {
         if(client) {
-            client_func(fd, timming);
+            client_run(fd, size);
         } else {
             if(socket_set_server(fd) > 0) {
-                server_loop(fd);
+                server_run(fd);
             }
         }
 
