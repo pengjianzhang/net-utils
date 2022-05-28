@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
+#include <sys/time.h>
 #include <getopt.h>
 
 struct timeval tv_last;
@@ -13,15 +14,15 @@ struct timeval tv;
 int g_show = 0;
 
 
-#define BUF_SIZE    2048
-char req_buf[BUF_SIZE] =
+#define BUF_SIZE    65536
+char req_buf[BUF_SIZE + 1] =
 "GET / HTTP/1.1\r\n"
 "User-Agent: curl/7.29.0\r\n"
 "Host: 172.16.199.175\r\n"
 "Accept: */*\r\n"
 "\r\n";
 
-char rsp_buf[BUF_SIZE] =
+char rsp_buf[BUF_SIZE + 1] =
 "HTTP/1.1 200 OK\r\n"
 "Server: nginx/1.20.1\r\n"
 "Date: Sun, 17 Apr 2022 07:12:08 GMT\r\n"
