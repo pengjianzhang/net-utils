@@ -21,6 +21,7 @@ char req_buf[BUF_SIZE + 1] =
 "Host: 172.16.199.175\r\n"
 "Accept: */*\r\n"
 "\r\n";
+int req_buf_len = 0;
 
 char rsp_buf[BUF_SIZE + 1] =
 "HTTP/1.1 200 OK\r\n"
@@ -31,6 +32,7 @@ char rsp_buf[BUF_SIZE + 1] =
 "Connection: keep-alive\r\n"
 "\r\n"
 "nginx server\n";
+int rsp_buf_len = 0;
 
 static inline void show(char *buf, int len)
 {
@@ -116,11 +118,10 @@ void server_loop(int fd)
     int cfd = 0;
     int ret = 0;
 
-    int len = strlen(rsp_buf);
     while ((cfd = accept(fd, NULL, NULL)) > 0) {
         while((ret = recv(cfd, req_buf, BUF_SIZE, 0)) > 0) {
             show(req_buf, ret);
-            send(cfd, rsp_buf, len, 0);
+            send(cfd, rsp_buf, rsp_buf_len, 0);
         }
         close(cfd);
     }
@@ -130,17 +131,15 @@ static void udp_server_loop(int fd)
 {
     struct sockaddr_storage guest;
     socklen_t slen;
-    int len = 0;
     int ret = 0;
 
-    len = strlen(rsp_buf);
     slen = sizeof(struct sockaddr_storage);
 
     while(1){
         ret = recvfrom(fd, req_buf, BUF_SIZE, 0,  (struct sockaddr*)&guest, &slen);
         if (ret > 0) {
             show(req_buf, ret);
-            sendto(fd, rsp_buf, len, 0,  (struct sockaddr*)&guest, slen);
+            sendto(fd, rsp_buf, rsp_buf_len, 0,  (struct sockaddr*)&guest, slen);
         }
     }
 }
@@ -198,12 +197,10 @@ static int client_connect(const char *addr, int port, int udp)
 void client_loop(int fd, int n)
 {
     int i;
-    int len = 0;
     int ret = 0;
 
-    len = strlen(req_buf);
     for (i = 0; i < n; i++) {
-        send(fd, req_buf, len, 0);
+        send(fd, req_buf, req_buf_len, 0);
         ret = recv(fd, rsp_buf, BUF_SIZE, 0);
         show(rsp_buf, ret);
     }
@@ -249,6 +246,7 @@ static struct option g_options[] = {
     {"server", required_argument, NULL, 's'},
     {"client", required_argument, NULL, 'c'},
     {"number", required_argument, NULL, 'n'},
+    {"size", required_argument, NULL, 'S'},
     {"port", required_argument, NULL, 'p'},
     {"show", no_argument, NULL, 'o'},
     {NULL, 0, NULL, 0}
@@ -263,7 +261,8 @@ int main(int argc, char *argv[])
     int server = 0;
     int client = 0;
     int opt = 0;
-    const char *optstr = "huos:c:n:p:";
+    int size = 0;
+    const char *optstr = "huos:c:n:p:S:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -293,6 +292,16 @@ int main(int argc, char *argv[])
                     goto err;
                 }
                 break;
+            case 'S':
+                size = atoi(optarg);
+                if ((size <= 0) || (size > BUF_SIZE)) {
+                    goto err;
+                }
+                memset(req_buf, 'x', size);
+                memset(rsp_buf, 'x', size);
+                req_buf[size] = 0;
+                rsp_buf[size] = 0;
+                break;
             case 'o':
                 g_show = 1;
                 break;
@@ -318,6 +327,9 @@ int main(int argc, char *argv[])
     if (num == 0) {
         num = 100000;
     }
+
+    req_buf_len = strlen(req_buf);
+    rsp_buf_len = strlen(rsp_buf);
 
     if (client) {
         client_run(addr, port, num, udp);
