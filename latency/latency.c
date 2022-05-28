@@ -42,6 +42,45 @@ static inline void show(char *buf, int len)
     }
 }
 
+static void msg_set(char *msg, int size)
+{
+    int i = 0;
+    int j = 0;
+    int line = 0;
+    char str[200];
+    int col = 100;
+    int pad = 0;
+
+    if (size<2) {
+        size = 2;
+    }
+
+    msg[0] = 0;
+    line = size / col;
+    pad = size - line * col;
+
+    for (i = 0; i < line; i++) {
+        sprintf(str, "%-8d", i * col);
+        for (j = 8; j < col; j++) {
+            str[j] = 'a';
+        }
+        str[j - 1] = '\n';
+        str[j] = 0;
+        strcat(msg, str);
+    }
+    if (pad > 0) {
+        for (i = 0; i < pad; i++) {
+            str[i] = 'b';
+        }
+        str[i] = 0;
+        strcat(msg, str);
+    }
+
+    if (size > 1) {
+        msg[size -1] = '=';
+    }
+}
+
 int socket_addr(struct sockaddr_storage *addr, const char *str, int port)
 {
     struct sockaddr_un *un = (struct sockaddr_un *)addr;
@@ -297,10 +336,9 @@ int main(int argc, char *argv[])
                 if ((size <= 0) || (size > BUF_SIZE)) {
                     goto err;
                 }
-                memset(req_buf, 'x', size);
-                memset(rsp_buf, 'x', size);
-                req_buf[size] = 0;
-                rsp_buf[size] = 0;
+
+                msg_set(req_buf, size);
+                msg_set(rsp_buf, size);
                 break;
             case 'o':
                 g_show = 1;
