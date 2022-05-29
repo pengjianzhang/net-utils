@@ -275,8 +275,8 @@ void client_run(const char *addr, int port, int n, int udp)
 static void usage(void)
 {
     printf("Usage:\n");
-    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port] [--show|-o]\n");
-    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] --number|-n number [--show|-o]\n");
+    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size]\n");
+    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size] --number|-n number \n");
 }
 
 static struct option g_options[] = {
