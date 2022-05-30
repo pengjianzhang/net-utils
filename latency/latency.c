@@ -12,7 +12,7 @@
 struct timeval tv_last;
 struct timeval tv;
 int g_show = 0;
-
+int g_wait = 0;
 
 #define BUF_SIZE    65536
 char req_buf[BUF_SIZE + 1] =
@@ -242,6 +242,9 @@ void client_loop(int fd, int n)
         send(fd, req_buf, req_buf_len, 0);
         ret = recv(fd, rsp_buf, BUF_SIZE, 0);
         show(rsp_buf, ret);
+        if (g_wait) {
+            usleep(g_wait);
+        }
     }
 }
 
@@ -271,12 +274,11 @@ void client_run(const char *addr, int port, int n, int udp)
     close(fd);
 }
 
-
 static void usage(void)
 {
     printf("Usage:\n");
     printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size]\n");
-    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size] --number|-n number \n");
+    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size] [--wait|-w w(us)] --number|-n number \n");
 }
 
 static struct option g_options[] = {
@@ -285,6 +287,7 @@ static struct option g_options[] = {
     {"server", required_argument, NULL, 's'},
     {"client", required_argument, NULL, 'c'},
     {"number", required_argument, NULL, 'n'},
+    {"wait", required_argument, NULL, 'w'},
     {"size", required_argument, NULL, 'S'},
     {"port", required_argument, NULL, 'p'},
     {"show", no_argument, NULL, 'o'},
@@ -301,7 +304,7 @@ int main(int argc, char *argv[])
     int client = 0;
     int opt = 0;
     int size = 0;
-    const char *optstr = "huos:c:n:p:S:";
+    const char *optstr = "huos:c:n:p:S:w:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -328,6 +331,12 @@ int main(int argc, char *argv[])
             case 'p':
                 port = atoi(optarg);
                 if ((port <= 0) || (port >= 65536)) {
+                    goto err;
+                }
+                break;
+            case 'w':
+                g_wait = atoi(optarg);
+                if (g_wait <= 0) {
                     goto err;
                 }
                 break;
