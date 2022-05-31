@@ -13,6 +13,7 @@ struct timeval tv_last;
 struct timeval tv;
 int g_show = 0;
 int g_wait = 0;
+int g_repeat = 1;
 
 #define BUF_SIZE    65536
 char req_buf[BUF_SIZE + 1] =
@@ -235,12 +236,18 @@ static int client_connect(const char *addr, int port, int udp)
 
 void client_loop(int fd, int n)
 {
-    int i;
+    int i = 0;
+    int j = 0;
     int ret = 0;
 
     for (i = 0; i < n; i++) {
-        send(fd, req_buf, req_buf_len, 0);
-        ret = recv(fd, rsp_buf, BUF_SIZE, 0);
+        for (j = 0; j < g_repeat; j++) {
+            send(fd, req_buf, req_buf_len, 0);
+        }
+
+        for (j = 0; j < g_repeat; j++) {
+            ret = recv(fd, rsp_buf, BUF_SIZE, 0);
+        }
         show(rsp_buf, ret);
         if (g_wait) {
             usleep(g_wait);
@@ -276,9 +283,20 @@ void client_run(const char *addr, int port, int n, int udp)
 
 static void usage(void)
 {
+    char *opts =
+        "\t--udp|-u\n"
+        "\t--server|-s ip/unix-socket-path\n"
+        "\t--client|-c ip/unix-socket-path\n"
+        "\t--port|-p port\n"
+        "\t--show|-o\n"
+        "\t--size|-S Size\n"
+        "\t--wait|-w w(us)\n"
+        "\t--repeat|-r Repeat\n"
+        "\t--number|-n number\n";
+
     printf("Usage:\n");
-    printf("\tlatency  [--udp|-u] --server|-s ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size]\n");
-    printf("\tlatency  [--udp|-u] --client|-c ip/unix-socket-path [--port|-p port] [--show|-o] [--size|-S Size] [--wait|-w w(us)] --number|-n number \n");
+    printf("\tlatency options\n");
+    printf("options:\n%s", opts);
 }
 
 static struct option g_options[] = {
@@ -290,6 +308,7 @@ static struct option g_options[] = {
     {"wait", required_argument, NULL, 'w'},
     {"size", required_argument, NULL, 'S'},
     {"port", required_argument, NULL, 'p'},
+    {"repeat", required_argument, NULL, 'r'},
     {"show", no_argument, NULL, 'o'},
     {NULL, 0, NULL, 0}
 };
@@ -304,7 +323,7 @@ int main(int argc, char *argv[])
     int client = 0;
     int opt = 0;
     int size = 0;
-    const char *optstr = "huos:c:n:p:S:w:";
+    const char *optstr = "huos:c:n:p:S:w:r:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -340,12 +359,17 @@ int main(int argc, char *argv[])
                     goto err;
                 }
                 break;
+            case 'r':
+                g_repeat = atoi(optarg);
+                if (g_repeat < 1) {
+                    goto err;
+                }
+                break;
             case 'S':
                 size = atoi(optarg);
                 if ((size <= 0) || (size > BUF_SIZE)) {
                     goto err;
                 }
-
                 msg_set(req_buf, size);
                 msg_set(rsp_buf, size);
                 break;
