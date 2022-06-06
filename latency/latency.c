@@ -396,7 +396,7 @@ int main(int argc, char *argv[])
     }
 
     if (num == 0) {
-        num = 100000;
+        num = 1;
     }
 
     req_buf_len = strlen(req_buf);
