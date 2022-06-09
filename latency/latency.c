@@ -289,6 +289,7 @@ static void usage(void)
         "\t--client|-c ip/unix-socket-path\n"
         "\t--port|-p port\n"
         "\t--show|-o\n"
+        "\t--daemon|-D\n"
         "\t--size|-S Size\n"
         "\t--wait|-w w(us)\n"
         "\t--repeat|-r Repeat\n"
@@ -310,6 +311,7 @@ static struct option g_options[] = {
     {"port", required_argument, NULL, 'p'},
     {"repeat", required_argument, NULL, 'r'},
     {"show", no_argument, NULL, 'o'},
+    {"daemon", no_argument, NULL, 'D'},
     {NULL, 0, NULL, 0}
 };
 
@@ -323,7 +325,8 @@ int main(int argc, char *argv[])
     int client = 0;
     int opt = 0;
     int size = 0;
-    const char *optstr = "huos:c:n:p:S:w:r:";
+    int run_daemon = 0;
+    const char *optstr = "huoDs:c:n:p:S:w:r:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -376,6 +379,9 @@ int main(int argc, char *argv[])
             case 'o':
                 g_show = 1;
                 break;
+            case 'D':
+                run_daemon = 1;
+                break;
             case 'u':
                 udp = 1;
                 break;
@@ -393,6 +399,13 @@ int main(int argc, char *argv[])
 
     if (server && num) {
         goto err;
+    }
+
+    if (run_daemon) {
+        if (daemon(1, 1) != 0) {
+            printf("daemon error\n");
+            return 1;
+        }
     }
 
     if (num == 0) {
