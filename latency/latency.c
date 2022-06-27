@@ -14,6 +14,7 @@ struct timeval tv;
 int g_show = 0;
 int g_wait = 0;
 int g_repeat = 1;
+int g_first = 1;
 
 #define BUF_SIZE    65536
 char req_buf[BUF_SIZE + 1] =
@@ -172,14 +173,28 @@ static void udp_server_loop(int fd)
     struct sockaddr_storage guest;
     socklen_t slen;
     int ret = 0;
+    int i = 0;
+
 
     slen = sizeof(struct sockaddr_storage);
 
-    while(1){
-        ret = recvfrom(fd, req_buf, BUF_SIZE, 0,  (struct sockaddr*)&guest, &slen);
-        if (ret > 0) {
-            show(req_buf, ret);
-            sendto(fd, rsp_buf, rsp_buf_len, 0,  (struct sockaddr*)&guest, slen);
+    if (g_repeat && g_first) {
+        while(1){
+            for (i = 0; i < g_repeat; i++) {
+                ret = recvfrom(fd, req_buf, BUF_SIZE, 0,  (struct sockaddr*)&guest, &slen);
+            }
+            if (ret > 0) {
+                show(req_buf, ret);
+                sendto(fd, rsp_buf, rsp_buf_len, 0,  (struct sockaddr*)&guest, slen);
+            }
+        }
+    } else {
+        while(1){
+            ret = recvfrom(fd, req_buf, BUF_SIZE, 0,  (struct sockaddr*)&guest, &slen);
+            if (ret > 0) {
+                show(req_buf, ret);
+                sendto(fd, rsp_buf, rsp_buf_len, 0,  (struct sockaddr*)&guest, slen);
+            }
         }
     }
 }
@@ -239,13 +254,20 @@ void client_loop(int fd, int n)
     int i = 0;
     int j = 0;
     int ret = 0;
+    int rcv_num = 0;
+
+    if (g_first) {
+        rcv_num = 1;
+    } else {
+        rcv_num = g_repeat;
+    }
 
     for (i = 0; i < n; i++) {
         for (j = 0; j < g_repeat; j++) {
             send(fd, req_buf, req_buf_len, 0);
         }
 
-        for (j = 0; j < g_repeat; j++) {
+        for (j = 0; j < rcv_num; j++) {
             ret = recv(fd, rsp_buf, BUF_SIZE, 0);
         }
         show(rsp_buf, ret);
@@ -293,6 +315,7 @@ static void usage(void)
         "\t--size|-S Size\n"
         "\t--wait|-w w(us)\n"
         "\t--repeat|-r Repeat\n"
+        "\t--first|-f\n"
         "\t--number|-n number\n";
 
     printf("Usage:\n");
@@ -305,6 +328,7 @@ static struct option g_options[] = {
     {"udp", no_argument, NULL, 'u'},
     {"server", required_argument, NULL, 's'},
     {"client", required_argument, NULL, 'c'},
+    {"first", required_argument, NULL, 'f'},
     {"number", required_argument, NULL, 'n'},
     {"wait", required_argument, NULL, 'w'},
     {"size", required_argument, NULL, 'S'},
@@ -326,7 +350,7 @@ int main(int argc, char *argv[])
     int opt = 0;
     int size = 0;
     int run_daemon = 0;
-    const char *optstr = "huoDs:c:n:p:S:w:r:";
+    const char *optstr = "hufoDs:c:n:p:S:w:r:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -375,6 +399,9 @@ int main(int argc, char *argv[])
                 }
                 msg_set(req_buf, size);
                 msg_set(rsp_buf, size);
+                break;
+            case 'f':
+                g_first = 1;
                 break;
             case 'o':
                 g_show = 1;
