@@ -117,6 +117,7 @@ static int server_listen(const char *addr, int port, int udp)
     int fd = 0;
     int af = 0;
     int ret = 0;
+    int one = 1;
     struct sockaddr_storage saddr;
     int len = sizeof(struct sockaddr_storage);
 
@@ -135,6 +136,8 @@ static int server_listen(const char *addr, int port, int udp)
         printf("create socket error\n");
         return -1;
     }
+
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
     ret = bind(fd, (struct sockaddr *)&saddr, len);
     if (ret != 0) {
