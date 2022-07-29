@@ -15,6 +15,7 @@ int g_show = 0;
 int g_wait = 0;
 int g_repeat = 1;
 int g_first = 1;
+int g_ping = 0;
 
 #define BUF_SIZE    65536
 char req_buf[BUF_SIZE + 1] =
@@ -252,6 +253,20 @@ static int client_connect(const char *addr, int port, int udp)
     return fd;
 }
 
+static void client_request_start(void)
+{
+    gettimeofday(&tv_last, NULL);
+}
+
+static void client_request_end(int n)
+{
+    unsigned long us;
+    gettimeofday(&tv, NULL);
+
+    us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
+    printf("%f ms\n", us * 1.0/(n * 1000));
+}
+
 void client_loop(int fd, int n)
 {
     int i = 0;
@@ -266,12 +281,18 @@ void client_loop(int fd, int n)
     }
 
     for (i = 0; i < n; i++) {
+        if (g_ping) {
+            client_request_start();
+        }
         for (j = 0; j < g_repeat; j++) {
             send(fd, req_buf, req_buf_len, 0);
         }
 
         for (j = 0; j < rcv_num; j++) {
             ret = recv(fd, rsp_buf, BUF_SIZE, 0);
+        }
+        if (g_ping) {
+            client_request_end(1);
         }
         show(rsp_buf, ret);
         if (g_wait) {
@@ -280,29 +301,20 @@ void client_loop(int fd, int n)
     }
 }
 
-static void client_request_start(void)
-{
-    gettimeofday(&tv_last, NULL);
-}
-
-static void client_request_end(int n)
-{
-    unsigned long us;
-    gettimeofday(&tv, NULL);
-
-    us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
-    printf("%f ms\n", us * 1.0/(n * 1000));
-
-}
 
 void client_run(const char *addr, int port, int n, int udp)
 {
     int fd = 0;
 
     fd = client_connect(addr, port, udp);
-    client_request_start();
+    if (!g_ping) {
+        client_request_start();
+    }
     client_loop(fd, n);
-    client_request_end(n);
+
+    if (!g_ping) {
+        client_request_end(n);
+    }
     close(fd);
 }
 
@@ -319,6 +331,7 @@ static void usage(void)
         "\t--wait|-w w(us)\n"
         "\t--repeat|-r Repeat\n"
         "\t--first|-f\n"
+        "\t--ping|-P\n"
         "\t--number|-n number\n";
 
     printf("Usage:\n");
@@ -339,12 +352,14 @@ static struct option g_options[] = {
     {"repeat", required_argument, NULL, 'r'},
     {"show", no_argument, NULL, 'o'},
     {"daemon", no_argument, NULL, 'D'},
+    {"ping", no_argument, NULL, 'P'},
     {NULL, 0, NULL, 0}
 };
 
 #define ADDR_SIZE    108
 int main(int argc, char *argv[])
 {
+    int len = 0;
     int port = 80;
     int udp = 0;
     int num = 0;
@@ -353,7 +368,7 @@ int main(int argc, char *argv[])
     int opt = 0;
     int size = 0;
     int run_daemon = 0;
-    const char *optstr = "hufoDs:c:n:p:S:w:r:";
+    const char *optstr = "hufoPDs:c:n:p:S:w:r:";
     char addr[ADDR_SIZE];
 
     if (argc == 1) {
@@ -388,6 +403,20 @@ int main(int argc, char *argv[])
                 if (g_wait <= 0) {
                     goto err;
                 }
+                len = strlen(optarg);
+                if (len >= 2) {
+                    if (optarg[len - 1] == 's') {
+                        if (optarg[len - 2] == 'u') {
+                            ;
+                        } else if (optarg[len - 2] == 'm') {
+                            g_wait *= 1000;
+                        } else if ((optarg[len - 2] < '0') || (optarg[len - 2] > '9')){
+                            goto err;
+                        } else {
+                            g_wait *= 1000 * 1000;
+                        }
+                    }
+                }
                 break;
             case 'r':
                 g_repeat = atoi(optarg);
@@ -414,6 +443,9 @@ int main(int argc, char *argv[])
                 break;
             case 'u':
                 udp = 1;
+                break;
+            case 'P':
+                g_ping = 1;
                 break;
             case 'h':
                 usage();
