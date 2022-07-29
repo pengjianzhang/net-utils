@@ -23,7 +23,7 @@ int g_ping = 0;
 int g_thread = 1;
 int g_port = 80;
 int g_udp = 0;
-int g_num = 1;
+int g_num = 0;
 char g_addr[ADDR_SIZE];
 
 #define BUF_SIZE    65536
@@ -519,6 +519,9 @@ int main(int argc, char *argv[])
     rsp_buf_len = strlen(rsp_buf);
 
     if (client) {
+        if (g_num == 0) {
+            g_num = 1;
+        }
         client_run_threads();
     } else {
         server_run(NULL);
