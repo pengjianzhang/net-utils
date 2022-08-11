@@ -12,10 +12,12 @@ make
 
 ### input from keyboard
 
+'''
 ./client 127.0.0.1 443
 > GET / HTTP/1.1
 > Host: 127.0.0.
 >
+'''
 
 ## Exit
 
