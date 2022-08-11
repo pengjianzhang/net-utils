@@ -8,17 +8,26 @@
 #include <sys/un.h>
 #include <sys/time.h>
 #include <getopt.h>
+#include <pthread.h>
 
-struct timeval tv_last;
-struct timeval tv;
+#define ADDR_SIZE    108
+#define THREAD_MAX   128
+int g_rtt_min_us = 1000 * 1000;
+__thread struct timeval tv_last;
+__thread struct timeval tv;
 int g_show = 0;
 int g_wait = 0;
 int g_repeat = 1;
 int g_first = 1;
 int g_ping = 0;
+int g_thread = 1;
+int g_port = 80;
+int g_udp = 0;
+int g_num = 0;
+char g_addr[ADDR_SIZE];
 
 #define BUF_SIZE    65536
-char req_buf[BUF_SIZE + 1] =
+__thread char req_buf[BUF_SIZE + 1] =
 "GET / HTTP/1.1\r\n"
 "User-Agent: curl/7.29.0\r\n"
 "Host: 172.16.199.175\r\n"
@@ -203,28 +212,28 @@ static void udp_server_loop(int fd)
     }
 }
 
-void server_run(const char *addr, int port, int udp)
+void server_run(void *data)
 {
     int fd = 0;
     int un = 0;
 
-    if (strchr(addr, '/') != NULL) {
+    if (strchr(g_addr, '/') != NULL) {
         un = 1;
     }
 
     if (un) {
-        unlink(addr);
+        unlink(g_addr);
     }
 
-    fd = server_listen(addr, port, udp);
-    if (udp) {
+    fd = server_listen(g_addr, g_port, g_udp);
+    if (g_udp) {
         udp_server_loop(fd);
     } else {
         server_loop(fd);
     }
 
     if (un) {
-        unlink(addr);
+        unlink(g_addr);
     }
 }
 
@@ -258,13 +267,16 @@ static void client_request_start(void)
     gettimeofday(&tv_last, NULL);
 }
 
-static void client_request_end(int n)
+static int client_request_end(int n)
 {
     unsigned long us;
     gettimeofday(&tv, NULL);
 
     us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
     printf("%f ms\n", us * 1.0/(n * 1000));
+
+    us = (us / 1000) * 1000;
+    return us;
 }
 
 void client_loop(int fd, int n)
@@ -273,6 +285,8 @@ void client_loop(int fd, int n)
     int j = 0;
     int ret = 0;
     int rcv_num = 0;
+    int us = 0;
+    int large = 0;
 
     if (g_first) {
         rcv_num = 1;
@@ -292,7 +306,16 @@ void client_loop(int fd, int n)
             ret = recv(fd, rsp_buf, BUF_SIZE, 0);
         }
         if (g_ping) {
-            client_request_end(1);
+            us = client_request_end(1);
+            if (us <= g_rtt_min_us) {
+                g_rtt_min_us = us;
+                large = 0;
+            } else {
+                large++;
+                if (large > 10) {
+                    break;
+                }
+            }
         }
         show(rsp_buf, ret);
         if (g_wait) {
@@ -301,21 +324,40 @@ void client_loop(int fd, int n)
     }
 }
 
-
-void client_run(const char *addr, int port, int n, int udp)
+void *client_run(void *data)
 {
     int fd = 0;
 
-    fd = client_connect(addr, port, udp);
+    fd = client_connect(g_addr, g_port, g_udp);
     if (!g_ping) {
         client_request_start();
     }
-    client_loop(fd, n);
+    client_loop(fd, g_num);
 
     if (!g_ping) {
-        client_request_end(n);
+        client_request_end(g_num);
     }
     close(fd);
+    return NULL;
+}
+
+void client_run_threads(void)
+{
+    int i = 0;
+    pthread_t t[THREAD_MAX];
+
+    if (g_thread <= 1) {
+        client_run(NULL);
+        return;
+    }
+
+    for (i = 0; i < g_thread; i++) {
+        pthread_create(&t[i], NULL, client_run, NULL);
+    }
+
+    for (i = 0; i < g_thread; i++) {
+        pthread_join(t[i], NULL);
+    }
 }
 
 static void usage(void)
@@ -332,6 +374,7 @@ static void usage(void)
         "\t--repeat|-r Repeat\n"
         "\t--first|-f\n"
         "\t--ping|-P\n"
+        "\t--thread|-t threads\n"
         "\t--number|-n number\n";
 
     printf("Usage:\n");
@@ -350,26 +393,22 @@ static struct option g_options[] = {
     {"size", required_argument, NULL, 'S'},
     {"port", required_argument, NULL, 'p'},
     {"repeat", required_argument, NULL, 'r'},
+    {"thread", required_argument, NULL, 't'},
     {"show", no_argument, NULL, 'o'},
     {"daemon", no_argument, NULL, 'D'},
     {"ping", no_argument, NULL, 'P'},
     {NULL, 0, NULL, 0}
 };
 
-#define ADDR_SIZE    108
 int main(int argc, char *argv[])
 {
     int len = 0;
-    int port = 80;
-    int udp = 0;
-    int num = 0;
     int server = 0;
     int client = 0;
     int opt = 0;
     int size = 0;
     int run_daemon = 0;
-    const char *optstr = "hufoPDs:c:n:p:S:w:r:";
-    char addr[ADDR_SIZE];
+    const char *optstr = "hufoPDs:c:n:p:S:w:r:t:";
 
     if (argc == 1) {
         usage();
@@ -380,21 +419,21 @@ int main(int argc, char *argv[])
         switch (opt) {
             case 'c':
                 client = 1;
-                strncpy(addr, optarg, ADDR_SIZE);
+                strncpy(g_addr, optarg, ADDR_SIZE);
                 break;
             case 's':
                 server = 1;
-                strncpy(addr, optarg, ADDR_SIZE);
+                strncpy(g_addr, optarg, ADDR_SIZE);
                 break;
             case 'n':
-                num = atoi(optarg);
-                if (num <= 0) {
+                g_num = atoi(optarg);
+                if (g_num <= 0) {
                     goto err;
                 }
                 break;
             case 'p':
-                port = atoi(optarg);
-                if ((port <= 0) || (port >= 65536)) {
+                g_port = atoi(optarg);
+                if ((g_port <= 0) || (g_port >= 65536)) {
                     goto err;
                 }
                 break;
@@ -424,6 +463,12 @@ int main(int argc, char *argv[])
                     goto err;
                 }
                 break;
+            case 't':
+                g_thread = atoi(optarg);
+                if ((g_thread < 1) || (g_thread > THREAD_MAX)) {
+                    goto err;
+                }
+                break;
             case 'S':
                 size = atoi(optarg);
                 if ((size <= 0) || (size > BUF_SIZE)) {
@@ -442,7 +487,7 @@ int main(int argc, char *argv[])
                 run_daemon = 1;
                 break;
             case 'u':
-                udp = 1;
+                g_udp = 1;
                 break;
             case 'P':
                 g_ping = 1;
@@ -459,7 +504,7 @@ int main(int argc, char *argv[])
         goto err;
     }
 
-    if (server && num) {
+    if (server && g_num) {
         goto err;
     }
 
@@ -470,17 +515,16 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (num == 0) {
-        num = 1;
-    }
-
     req_buf_len = strlen(req_buf);
     rsp_buf_len = strlen(rsp_buf);
 
     if (client) {
-        client_run(addr, port, num, udp);
+        if (g_num == 0) {
+            g_num = 1;
+        }
+        client_run_threads();
     } else {
-        server_run(addr, port, udp);
+        server_run(NULL);
     }
 
     return 0;
