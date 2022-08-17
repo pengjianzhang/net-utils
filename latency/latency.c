@@ -1,3 +1,7 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -52,6 +56,17 @@ int rsp_buf_len = 0;
 
 static __thread SSL_CTX *g_ctx = NULL;
 static __thread SSL *g_ssl = NULL;
+
+static int cpu_bind(int cpu)
+{
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cpu, &cpuset);
+    if(sched_setaffinity(0, sizeof(cpuset), &cpuset) == -1) {
+        return -1;
+    }
+    return 0;
+}
 
 static void ssl_init(void)
 {
@@ -453,6 +468,7 @@ static void usage(void)
         "\t--ping|-P\n"
         "\t--ssl|-l\n"
         "\t--thread|-t threads\n"
+        "\t--bind_cpu|-b CPU\n"
         "\t--number|-n number\n";
 
     printf("Usage:\n");
@@ -469,6 +485,7 @@ static struct option g_options[] = {
     {"number", required_argument, NULL, 'n'},
     {"wait", required_argument, NULL, 'w'},
     {"size", required_argument, NULL, 'S'},
+    {"bind_cpu", required_argument, NULL, 'b'},
     {"port", required_argument, NULL, 'p'},
     {"repeat", required_argument, NULL, 'r'},
     {"thread", required_argument, NULL, 't'},
@@ -487,7 +504,8 @@ int main(int argc, char *argv[])
     int opt = 0;
     int size = 0;
     int run_daemon = 0;
-    const char *optstr = "hufolPDs:c:n:p:S:w:r:t:";
+    int cpu = -1;
+    const char *optstr = "hufolPDb:s:c:n:p:S:w:r:t:";
 
     if (argc == 1) {
         usage();
@@ -556,6 +574,12 @@ int main(int argc, char *argv[])
                 msg_set(req_buf, size);
                 msg_set(rsp_buf, size);
                 break;
+            case 'b':
+                cpu = atoi(optarg);
+                if (cpu < 0) {
+                    return -1;
+                }
+                break;
             case 'f':
                 g_first = 1;
                 break;
@@ -605,8 +629,12 @@ int main(int argc, char *argv[])
         ssl_init();
     }
 
+    if (cpu >= 0) {
+        cpu_bind(cpu);
+    }
     req_buf_len = strlen(req_buf);
     rsp_buf_len = strlen(rsp_buf);
+
 
     if (client) {
         if (g_num == 0) {
