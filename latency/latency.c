@@ -9,6 +9,9 @@
 #include <sys/time.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #define ADDR_SIZE    108
 #define THREAD_MAX   128
@@ -24,6 +27,7 @@ int g_thread = 1;
 int g_port = 80;
 int g_udp = 0;
 int g_num = 0;
+int g_ssl_enable = 0;
 char g_addr[ADDR_SIZE];
 
 #define BUF_SIZE    65536
@@ -45,6 +49,54 @@ char rsp_buf[BUF_SIZE + 1] =
 "\r\n"
 "nginx server\n";
 int rsp_buf_len = 0;
+
+static __thread SSL_CTX *g_ctx = NULL;
+static __thread SSL *g_ssl = NULL;
+
+static void ssl_init(void)
+{
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    ERR_load_crypto_strings();
+}
+
+static int ssl_client_init(int sk)
+{
+    SSL *ssl = NULL;
+    SSL_CTX *ctx = NULL;
+
+    ctx = SSL_CTX_new(SSLv23_client_method());
+    if (ctx == NULL) {
+        goto err;
+    }
+    SSL_CTX_set_options(ctx, SSL_OP_ALL|SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3);
+
+    ssl = SSL_new(ctx);
+    if (ssl == NULL) {
+        goto err;
+    }
+
+    SSL_set_fd(ssl, sk);
+    if(SSL_connect(ssl) == -1) {
+        goto err;
+    }
+
+    g_ssl = ssl;
+    g_ctx = ctx;
+    return 0;
+
+err:
+    if (ssl) {
+        SSL_free(ssl);
+    }
+
+    if (ctx) {
+        SSL_CTX_free(ctx);
+    }
+
+    return -1;
+}
 
 static inline void show(char *buf, int len)
 {
@@ -256,7 +308,15 @@ static int client_connect(const char *addr, int port, int udp)
     }
 
     if(connect(fd, (struct sockaddr *)&saddr, len) < 0)  {
+        close(fd);
         return -1;
+    }
+
+    if (g_ssl_enable) {
+        if (ssl_client_init(fd) < 0) {
+            close(fd);
+            return -1;
+        }
     }
 
     return fd;
@@ -298,13 +358,24 @@ void client_loop(int fd, int n)
         if (g_ping) {
             client_request_start();
         }
-        for (j = 0; j < g_repeat; j++) {
-            send(fd, req_buf, req_buf_len, 0);
+        if (g_ssl_enable) {
+            for (j = 0; j < g_repeat; j++) {
+                SSL_write(g_ssl, req_buf, req_buf_len);
+            }
+
+            for (j = 0; j < rcv_num; j++) {
+                ret = SSL_read(g_ssl, rsp_buf, BUF_SIZE);
+            }
+        } else {
+            for (j = 0; j < g_repeat; j++) {
+                send(fd, req_buf, req_buf_len, 0);
+            }
+
+            for (j = 0; j < rcv_num; j++) {
+                ret = recv(fd, rsp_buf, BUF_SIZE, 0);
+            }
         }
 
-        for (j = 0; j < rcv_num; j++) {
-            ret = recv(fd, rsp_buf, BUF_SIZE, 0);
-        }
         if (g_ping) {
             us = client_request_end(1);
             if (us <= g_rtt_min_us) {
@@ -336,6 +407,12 @@ void *client_run(void *data)
 
     if (!g_ping) {
         client_request_end(g_num);
+    }
+
+    if (g_ssl_enable) {
+        SSL_shutdown(g_ssl);
+        SSL_free(g_ssl);
+        SSL_CTX_free(g_ctx);
     }
     close(fd);
     return NULL;
@@ -374,6 +451,7 @@ static void usage(void)
         "\t--repeat|-r Repeat\n"
         "\t--first|-f\n"
         "\t--ping|-P\n"
+        "\t--ssl|-l\n"
         "\t--thread|-t threads\n"
         "\t--number|-n number\n";
 
@@ -397,6 +475,7 @@ static struct option g_options[] = {
     {"show", no_argument, NULL, 'o'},
     {"daemon", no_argument, NULL, 'D'},
     {"ping", no_argument, NULL, 'P'},
+    {"ssl", no_argument, NULL, 'l'},
     {NULL, 0, NULL, 0}
 };
 
@@ -408,7 +487,7 @@ int main(int argc, char *argv[])
     int opt = 0;
     int size = 0;
     int run_daemon = 0;
-    const char *optstr = "hufoPDs:c:n:p:S:w:r:t:";
+    const char *optstr = "hufolPDs:c:n:p:S:w:r:t:";
 
     if (argc == 1) {
         usage();
@@ -492,6 +571,9 @@ int main(int argc, char *argv[])
             case 'P':
                 g_ping = 1;
                 break;
+            case 'l':
+                g_ssl_enable = 1;
+                break;
             case 'h':
                 usage();
                 return 0;
@@ -513,6 +595,14 @@ int main(int argc, char *argv[])
             printf("daemon error\n");
             return 1;
         }
+    }
+
+    if (g_ssl_enable) {
+        if (server || g_udp) {
+            printf("bad args\n");
+            return -1;
+        }
+        ssl_init();
     }
 
     req_buf_len = strlen(req_buf);
