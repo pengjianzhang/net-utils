@@ -17,8 +17,10 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#define ADDR_SIZE    108
-#define THREAD_MAX   128
+#define ADDR_SIZE   108
+#define THREAD_MAX  128
+#define PATH_SIZE   128
+
 int g_rtt_min_us = 1000 * 1000;
 __thread struct timeval tv_last;
 __thread struct timeval tv;
@@ -32,6 +34,7 @@ int g_port = 80;
 int g_udp = 0;
 int g_num = 0;
 int g_ssl_enable = 0;
+char g_path[PATH_SIZE];
 char g_addr[ADDR_SIZE];
 
 #define BUF_SIZE    65536
@@ -42,6 +45,12 @@ __thread char req_buf[BUF_SIZE + 1] =
 "Accept: */*\r\n"
 "\r\n";
 int req_buf_len = 0;
+
+#define REQ_FMT "GET %s HTTP/1.1\r\n"   \
+    "User-Agent: curl/7.29.0\r\n"       \
+    "Host: localhost\r\n"               \
+    "Accept: */*\r\n"                   \
+    "\r\n"
 
 char rsp_buf[BUF_SIZE + 1] =
 "HTTP/1.1 200 OK\r\n"
@@ -466,6 +475,7 @@ static void usage(void)
         "\t--repeat|-r Repeat\n"
         "\t--first|-f\n"
         "\t--ping|-P\n"
+        "\t--path|-a PATH\n"
         "\t--ssl|-l\n"
         "\t--thread|-t threads\n"
         "\t--bind_cpu|-b CPU\n"
@@ -483,6 +493,7 @@ static struct option g_options[] = {
     {"client", required_argument, NULL, 'c'},
     {"first", required_argument, NULL, 'f'},
     {"number", required_argument, NULL, 'n'},
+    {"path", required_argument, NULL, 'a'},
     {"wait", required_argument, NULL, 'w'},
     {"size", required_argument, NULL, 'S'},
     {"bind_cpu", required_argument, NULL, 'b'},
@@ -505,7 +516,7 @@ int main(int argc, char *argv[])
     int size = 0;
     int run_daemon = 0;
     int cpu = -1;
-    const char *optstr = "hufolPDb:s:c:n:p:S:w:r:t:";
+    const char *optstr = "hufolPDb:s:c:n:p:S:w:r:t:a:";
 
     if (argc == 1) {
         usage();
@@ -514,6 +525,12 @@ int main(int argc, char *argv[])
 
     while ((opt = getopt_long_only(argc, argv, optstr, g_options, NULL)) != -1) {
         switch (opt) {
+            case 'a':
+                if (strlen(optarg) >= PATH_SIZE) {
+                    return -1;
+                }
+                strcpy(g_path, optarg);
+                break;
             case 'c':
                 client = 1;
                 strncpy(g_addr, optarg, ADDR_SIZE);
@@ -612,6 +629,14 @@ int main(int argc, char *argv[])
 
     if (server && g_num) {
         goto err;
+    }
+
+    if (strlen(g_path) > 0) {
+        if (server || (size > 0)) {
+            goto err;
+        }
+
+        sprintf(req_buf, REQ_FMT, g_path);
     }
 
     if (run_daemon) {
