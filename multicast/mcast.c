@@ -53,10 +53,13 @@ static int socket_bind(int sk, const char *ip_str, const char *port_str)
     return 0;
 }
 
+#define BUF_SIZE    128
 static void sender(const char *mip, const char *lip, const char *port)
 {
     int sk = 0;
     struct sockaddr_in maddr;
+    char buf[BUF_SIZE];
+    int len = 0;
 
     if (addr_init(&maddr, mip, port) != 0) {
         return;
@@ -68,6 +71,11 @@ static void sender(const char *mip, const char *lip, const char *port)
     multicast_iface(sk, lip);
     sendto(sk, "aaa", 3, 0, (struct sockaddr *)&maddr, sizeof(struct sockaddr_in));
 
+    len = recvfrom(sk, buf, BUF_SIZE, 0, NULL, NULL);
+    if (len > 0) {
+        buf[len] = 0;
+        printf("%s\n", buf);
+    }
     close(sk);
 }
 
@@ -81,22 +89,24 @@ static void multicast_join(int sk, const char *mip, const char *lip)
     setsockopt(sk, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
 }
 
-#define BUF_SIZE    128
 static void receiver(const char *mip, const char *lip, const char *port_str)
 {
     char buf[BUF_SIZE + 1];
     int len = 0;
     int sk = -1;
+    struct sockaddr_in peer;
+    socklen_t slen;
 
+    slen = sizeof(struct sockaddr_in);
     sk = socket(AF_INET, SOCK_DGRAM, 0);
     socket_bind(sk, mip, port_str);
     multicast_join(sk, mip, lip);
 
     while (1) {
-        len = recv(sk, buf, BUF_SIZE, 0);
+        len = recvfrom(sk, buf, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
         if (len > 0) {
-            buf[len] = 0;
             printf("%s\n", buf);
+            sendto(sk, "bbb", 3, 0,  (struct sockaddr*)&peer, slen);
         }
     }
 }
