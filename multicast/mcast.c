@@ -56,7 +56,6 @@ static int socket_bind(int sk, const char *ip_str, const char *port_str)
 static void sender(const char *mip, const char *lip, const char *port)
 {
     int sk = 0;
-    int fd = -1;
     struct sockaddr_in maddr;
 
     if (addr_init(&maddr, mip, port) != 0) {
@@ -69,7 +68,7 @@ static void sender(const char *mip, const char *lip, const char *port)
     multicast_iface(sk, lip);
     sendto(sk, "aaa", 3, 0, (struct sockaddr *)&maddr, sizeof(struct sockaddr_in));
 
-    close(fd);
+    close(sk);
 }
 
 static void multicast_join(int sk, const char *mip, const char *lip)
