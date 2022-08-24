@@ -82,7 +82,7 @@ static void sender(const char *mip, const char *lip, const char *port)
     char buf[BUF_SIZE];
 //    int len = 0;
     int i = 0;
-    int n = 100000;
+    int n = 10000;
 
     if (addr_init(&maddr, mip, port) != 0) {
         return;
