@@ -105,6 +105,7 @@ static void receiver(const char *mip, const char *lip, const char *port_str)
     while (1) {
         len = recvfrom(sk, buf, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
         if (len > 0) {
+            buf[len] = 0;
             printf("%s\n", buf);
             sendto(sk, "bbb", 3, 0,  (struct sockaddr*)&peer, slen);
         }
