@@ -1,6 +1,6 @@
 
 mcast: mcast.c
-	gcc -Wall -g mcast.c -o mcast
+	gcc -Wall -O3 mcast.c -o mcast
 
 clean:
 	rm -f mcast
