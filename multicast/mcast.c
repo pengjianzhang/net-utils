@@ -90,7 +90,7 @@ static void receiver(const char *mip, const char *lip, const char *port_str)
     int sk = -1;
 
     sk = socket(AF_INET, SOCK_DGRAM, 0);
-    socket_bind(sk, lip, port_str);
+    socket_bind(sk, mip, port_str);
     multicast_join(sk, mip, lip);
 
     while (1) {
