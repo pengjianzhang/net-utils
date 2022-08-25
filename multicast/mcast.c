@@ -11,18 +11,25 @@
 static struct timeval tv_last;
 static struct timeval tv;
 
+
+#define BUF_SIZE	(1024 * 2)
+static char g_req[BUF_SIZE];
+static char g_rsp[BUF_SIZE];
+static int g_req_len = 0;
+
 static void client_request_start(void)
 {
     gettimeofday(&tv_last, NULL);
 }
 
-static int client_request_end(int n)
+static int client_request_end(long n)
 {
     unsigned long us;
+
     gettimeofday(&tv, NULL);
 
     us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
-    printf("%f ms\n", us * 1.0/(n * 1000));
+    printf("%f ms PPS %ld\n", us * 1.0/(n * 1000), n*1000*1000/us);
 
     us = (us / 1000) * 1000;
     return us;
@@ -74,15 +81,34 @@ static int socket_bind(int sk, const char *ip_str, const char *port_str)
     return 0;
 }
 
-#define BUF_SIZE    128
-static void sender(const char *mip, const char *lip, const char *port)
+static int multicast_ip_check(const char *ip)
+{
+    char c0 = ip[0];
+    char c1 = ip[1];
+    char c2 = ip[2];
+
+    if (c0 == '2') {
+        if (c1 == '2') {
+            if (c2 >= '4') {
+                return 0;
+            }
+        } else if (c1 == '3') {
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+static void sender(const char *mip, const char *lip, const char *port, int n)
 {
     int sk = 0;
     struct sockaddr_in maddr;
-    char buf[BUF_SIZE];
-//    int len = 0;
     int i = 0;
-    int n = 10000;
+
+    if (n == 0) {
+        n = 1;
+    }
 
     if (addr_init(&maddr, mip, port) != 0) {
         return;
@@ -90,13 +116,15 @@ static void sender(const char *mip, const char *lip, const char *port)
 
     sk = socket(AF_INET, SOCK_DGRAM, 0);
     socket_bind(sk, lip, port);
-    multicast_no_loop(sk);
-    multicast_iface(sk, lip);
 
+    if (multicast_ip_check(mip) == 0) {
+        multicast_no_loop(sk);
+        multicast_iface(sk, lip);
+    }
     client_request_start();
     for (i = 0; i < n; i++) {
-        sendto(sk, "aaa", 3, 0, (struct sockaddr *)&maddr, sizeof(struct sockaddr_in));
-        recvfrom(sk, buf, BUF_SIZE, 0, NULL, NULL);
+        sendto(sk, g_req, g_req_len, 0, (struct sockaddr *)&maddr, sizeof(struct sockaddr_in));
+        recvfrom(sk, g_rsp, BUF_SIZE, 0, NULL, NULL);
 /*
         if (len > 0) {
             buf[len] = 0;
@@ -120,8 +148,6 @@ static void multicast_join(int sk, const char *mip, const char *lip)
 
 static void receiver(const char *mip, const char *lip, const char *port_str)
 {
-    char buf[BUF_SIZE + 1];
-//    int len = 0;
     int sk = -1;
     struct sockaddr_in peer;
     socklen_t slen;
@@ -129,11 +155,14 @@ static void receiver(const char *mip, const char *lip, const char *port_str)
     slen = sizeof(struct sockaddr_in);
     sk = socket(AF_INET, SOCK_DGRAM, 0);
     socket_bind(sk, mip, port_str);
-    multicast_join(sk, mip, lip);
+
+    if (multicast_ip_check(mip) == 0) {
+        multicast_join(sk, mip, lip);
+    }
 
     while (1) {
-        recvfrom(sk, buf, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
-        sendto(sk, "bbb", 3, 0,  (struct sockaddr*)&peer, slen);
+        recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
+        sendto(sk, g_req, g_req_len, 0,  (struct sockaddr*)&peer, slen);
 /*
         if (len > 0) {
             buf[len] = 0;
@@ -145,27 +174,46 @@ static void receiver(const char *mip, const char *lip, const char *port_str)
 
 static void usage(void)
 {
-    printf("mcast send|recv multicast-ip local-ip port\n");
+    printf("mcast send|recv size multicast-ip local-ip port [number]\n");
 }
 
 int main (int argc, char *argv[])
 {
+    char *type = NULL;
     char *lip = NULL;
     char *mip = NULL;
     char *port = NULL;
+    int size = 0;
+    int n = 0;
 
-    if (argc != 5) {
+    if (argc < 6) {
         usage();
         return 1;
     }
 
-    mip = argv[2];
-    lip = argv[3];
-    port = argv[4];
+    type = argv[1];
+    size = atoi(argv[2]);
+    if ((size <= 0) || (size > (1500 - 20 - 8))) {
+        printf("bad size\n");
+        return 1;
+    }
+    mip = argv[3];
+    lip = argv[4];
+    port = argv[5];
 
-    if (strcmp(argv[1], "send") == 0) {
-        sender(mip, lip, port);
-    } else if (strcmp(argv[1], "recv") == 0) {
+    if (argc >= 7) {
+        n = atoi(argv[6]);
+        if (n <= 0) {
+            usage();
+            return -1;
+        }
+    }
+    g_req_len = size;
+    if (strcmp(type, "send") == 0) {
+        memset(g_req, 'a', size);
+        sender(mip, lip, port, n);
+    } else if (strcmp(type, "recv") == 0) {
+        memset(g_req, 'b', size);
         receiver(mip, lip, port);
     } else {
         usage();
