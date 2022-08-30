@@ -146,11 +146,12 @@ static void multicast_join(int sk, const char *mip, const char *lip)
     setsockopt(sk, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
 }
 
-static void receiver(const char *mip, const char *lip, const char *port_str)
+static void receiver(const char *mip, const char *lip, const char *port_str, int output)
 {
     int sk = -1;
+    int len = 0;
+    socklen_t slen = 0;
     struct sockaddr_in peer;
-    socklen_t slen;
 
     slen = sizeof(struct sockaddr_in);
     sk = socket(AF_INET, SOCK_DGRAM, 0);
@@ -161,20 +162,19 @@ static void receiver(const char *mip, const char *lip, const char *port_str)
     }
 
     while (1) {
-        recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
+        len = recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
         sendto(sk, g_req, g_req_len, 0,  (struct sockaddr*)&peer, slen);
-/*
-        if (len > 0) {
-            buf[len] = 0;
-            printf("%s\n", buf);
+        if ((len > 0)) {
+            g_rsp[len] = 0;
+            printf("%s\n", g_rsp);
         }
-*/
     }
 }
 
 static void usage(void)
 {
-    printf("mcast send|recv size multicast-ip local-ip port [number]\n");
+    printf("mcast send size multicast-ip local-ip port [number]\n");
+    printf("mcast recv size multicast-ip local-ip port [output]\n");
 }
 
 int main (int argc, char *argv[])
@@ -185,6 +185,7 @@ int main (int argc, char *argv[])
     char *port = NULL;
     int size = 0;
     int n = 0;
+    int output = 0;
 
     if (argc < 6) {
         usage();
@@ -202,10 +203,14 @@ int main (int argc, char *argv[])
     port = argv[5];
 
     if (argc >= 7) {
-        n = atoi(argv[6]);
-        if (n <= 0) {
-            usage();
-            return -1;
+        if (strcmp(argv[6], "output") == 0) {
+            output = 0;
+        } else {
+            n = atoi(argv[6]);
+            if (n <= 0) {
+                usage();
+                return -1;
+            }
         }
     }
     g_req_len = size;
@@ -214,7 +219,7 @@ int main (int argc, char *argv[])
         sender(mip, lip, port, n);
     } else if (strcmp(type, "recv") == 0) {
         memset(g_req, 'b', size);
-        receiver(mip, lip, port);
+        receiver(mip, lip, port, output);
     } else {
         usage();
         return 1;
