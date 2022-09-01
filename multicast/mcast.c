@@ -149,7 +149,6 @@ static void multicast_join(int sk, const char *mip, const char *lip)
 static void receiver(const char *mip, const char *lip, const char *port_str, int output)
 {
     int sk = -1;
-    int len = 0;
     socklen_t slen = 0;
     struct sockaddr_in peer;
 
@@ -162,12 +161,8 @@ static void receiver(const char *mip, const char *lip, const char *port_str, int
     }
 
     while (1) {
-        len = recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
+        recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
         sendto(sk, g_req, g_req_len, 0,  (struct sockaddr*)&peer, slen);
-        if ((len > 0)) {
-            g_rsp[len] = 0;
-            printf("%s\n", g_rsp);
-        }
     }
 }
 
