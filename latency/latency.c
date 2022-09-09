@@ -358,6 +358,7 @@ static int client_request_end(int n)
 
     us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
     printf("%f ms\n", us * 1.0/(n * 1000));
+    fflush(stdout);
 
     us = (us / 1000) * 1000;
     return us;
