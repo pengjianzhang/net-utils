@@ -34,6 +34,7 @@ int g_port = 80;
 int g_udp = 0;
 int g_num = 0;
 int g_ssl_enable = 0;
+int g_time = 0;
 char g_path[PATH_SIZE];
 char g_addr[ADDR_SIZE];
 
@@ -351,12 +352,23 @@ static void client_request_start(void)
     gettimeofday(&tv_last, NULL);
 }
 
+static void show_time(void)
+{
+    time_t t;
+
+    time(&t);
+    printf("%s", ctime(&t));
+}
+
 static int client_request_end(int n)
 {
     unsigned long us;
     gettimeofday(&tv, NULL);
 
     us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
+    if (g_time) {
+        show_time();
+    }
     printf("%f ms\n", us * 1.0/(n * 1000));
     fflush(stdout);
 
@@ -476,6 +488,7 @@ static void usage(void)
         "\t--repeat|-r Repeat\n"
         "\t--first|-f\n"
         "\t--ping|-P\n"
+        "\t--time|-T\n"
         "\t--path|-a PATH\n"
         "\t--ssl|-l\n"
         "\t--thread|-t threads\n"
@@ -504,6 +517,7 @@ static struct option g_options[] = {
     {"show", no_argument, NULL, 'o'},
     {"daemon", no_argument, NULL, 'D'},
     {"ping", no_argument, NULL, 'P'},
+    {"time", no_argument, NULL, 'T'},
     {"ssl", no_argument, NULL, 'l'},
     {NULL, 0, NULL, 0}
 };
@@ -517,7 +531,7 @@ int main(int argc, char *argv[])
     int size = 0;
     int run_daemon = 0;
     int cpu = -1;
-    const char *optstr = "hufolPDb:s:c:n:p:S:w:r:t:a:";
+    const char *optstr = "hufolTPDb:s:c:n:p:S:w:r:t:a:";
 
     if (argc == 1) {
         usage();
@@ -615,6 +629,9 @@ int main(int argc, char *argv[])
                 break;
             case 'l':
                 g_ssl_enable = 1;
+                break;
+            case 'T':
+                g_time = 1;
                 break;
             case 'h':
                 usage();
