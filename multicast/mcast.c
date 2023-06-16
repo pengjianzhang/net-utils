@@ -171,6 +171,31 @@ static void usage(void)
     printf("mcast recv size multicast-ip local-ip port [output]\n");
 }
 
+static void set_data(char *data, int size, char c)
+{
+    char buf[101];
+    int line = size / 100;
+    char snum[30];
+    int len = 0;
+    int i = 0;
+
+    data[0] = 0;
+    for (i = 0; i < line; i++) {
+        memset(buf, c, 100);
+        len = sprintf(snum, "%-10d", i * 100);
+        memcpy(buf, snum, len);
+        buf[99] = '\n';
+        buf[100] = 0;
+        strcat(data, buf);
+    }
+
+    for (i = 100 * line; i < size; i++) {
+        data[i] = c;
+    }
+    data[size - 1] = 'E';
+    data[size] = 0;
+}
+
 int main (int argc, char *argv[])
 {
     char *type = NULL;
@@ -209,11 +234,10 @@ int main (int argc, char *argv[])
     }
     g_req_len = size;
     if (strcmp(type, "send") == 0) {
-        memset(g_req, 'a', size);
-        g_req[size-1]='E';
+        set_data(g_req, size, 'a');
         sender(mip, lip, port, n);
     } else if (strcmp(type, "recv") == 0) {
-        memset(g_req, 'b', size);
+        set_data(g_req, size, 'b');
         g_req[size-1]='E';
         receiver(mip, lip, port, output);
     } else {
