@@ -12,7 +12,7 @@ static struct timeval tv_last;
 static struct timeval tv;
 
 
-#define BUF_SIZE	(1024 * 2)
+#define BUF_SIZE       (1024 * 16)
 static char g_req[BUF_SIZE];
 static char g_rsp[BUF_SIZE];
 static int g_req_len = 0;
@@ -125,12 +125,6 @@ static void sender(const char *mip, const char *lip, const char *port, int n)
     for (i = 0; i < n; i++) {
         sendto(sk, g_req, g_req_len, 0, (struct sockaddr *)&maddr, sizeof(struct sockaddr_in));
         recvfrom(sk, g_rsp, BUF_SIZE, 0, NULL, NULL);
-/*
-        if (len > 0) {
-            buf[len] = 0;
-            printf("%s\n", buf);
-        }
-*/
     }
     client_request_end(n);
     close(sk);
@@ -149,6 +143,7 @@ static void multicast_join(int sk, const char *mip, const char *lip)
 static void receiver(const char *mip, const char *lip, const char *port_str, int output)
 {
     int sk = -1;
+    int ret = 0;
     socklen_t slen = 0;
     struct sockaddr_in peer;
 
@@ -161,7 +156,11 @@ static void receiver(const char *mip, const char *lip, const char *port_str, int
     }
 
     while (1) {
-        recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
+        ret = recvfrom(sk, g_rsp, BUF_SIZE, 0, (struct sockaddr *)&peer, &slen);
+        if (output && ret > 0) {
+            g_rsp[ret] = 0;
+            printf("%s\n", g_rsp);
+        }
         sendto(sk, g_req, g_req_len, 0,  (struct sockaddr*)&peer, slen);
     }
 }
@@ -189,7 +188,7 @@ int main (int argc, char *argv[])
 
     type = argv[1];
     size = atoi(argv[2]);
-    if ((size <= 0) || (size > (1500 - 20 - 8))) {
+    if ((size <= 0) || (size > BUF_SIZE)) {
         printf("bad size\n");
         return 1;
     }
@@ -199,7 +198,7 @@ int main (int argc, char *argv[])
 
     if (argc >= 7) {
         if (strcmp(argv[6], "output") == 0) {
-            output = 0;
+            output = 1;
         } else {
             n = atoi(argv[6]);
             if (n <= 0) {
@@ -211,9 +210,11 @@ int main (int argc, char *argv[])
     g_req_len = size;
     if (strcmp(type, "send") == 0) {
         memset(g_req, 'a', size);
+        g_req[size-1]='E';
         sender(mip, lip, port, n);
     } else if (strcmp(type, "recv") == 0) {
         memset(g_req, 'b', size);
+        g_req[size-1]='E';
         receiver(mip, lip, port, output);
     } else {
         usage();
