@@ -5,6 +5,29 @@
 #include <event2/http.h>
 #include <event2/buffer.h>
 
+const char * file_1k = "00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"00000000000000000000000000000000000000000000000\n"
+"000000000000000\n";
+
 static void zero_cb(struct evhttp_request *req, void *arg)
 {
 	evhttp_send_reply(req, 200, "OK", NULL);
@@ -14,6 +37,23 @@ static void notfound_cb(struct evhttp_request *req, void *arg)
 {
     evhttp_send_error(req, HTTP_NOTFOUND, NULL);
 }
+
+static void file_1k_cb(struct evhttp_request *req, void *arg)
+{
+	struct evbuffer *evb = NULL;
+
+	if (evhttp_request_get_command(req) != EVHTTP_REQ_GET) {
+	    evhttp_send_error(req, HTTP_NOTFOUND, NULL);
+        return;
+	}
+
+	evb = evbuffer_new();
+    evbuffer_add_printf(evb, file_1k);
+    evhttp_add_header(evhttp_request_get_output_headers(req), "Content-Type", "text/html");
+	evhttp_send_reply(req, 200, "OK", evb);
+	evbuffer_free(evb);
+}
+
 
 static void default_cb(struct evhttp_request *req, void *arg)
 {
@@ -25,8 +65,7 @@ static void default_cb(struct evhttp_request *req, void *arg)
 	}
 
 	evb = evbuffer_new();
-    evbuffer_add_printf(evb, "hello\n");
-    evbuffer_add_printf(evb, "This is a libevent example\n");
+    evbuffer_add_printf(evb, "hi, libevent\n");
     evhttp_add_header(evhttp_request_get_output_headers(req), "Content-Type", "text/html");
 	evhttp_send_reply(req, 200, "OK", evb);
 	evbuffer_free(evb);
@@ -67,8 +106,9 @@ int main(int argc, char **argv)
 
 	evhttp_set_cb(http, "/zero", zero_cb, NULL);
 	evhttp_set_cb(http, "/404",  notfound_cb, NULL);
+	evhttp_set_cb(http, "/file/1k",  file_1k_cb, NULL);
 	evhttp_set_gencb(http, default_cb, NULL);
-    if (evhttp_bind_socket(http, "127.0.0.1", 6000) != 0) {
+    if (evhttp_bind_socket(http, "0.0.0.0", 8000) != 0) {
         goto err;
     }
 

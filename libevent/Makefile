@@ -1,5 +1,13 @@
-test: http-server.c
-	gcc http-server.c -o test  -levent
+all: http-server tcp-client
+
+CFLGAS=-O3 -g
+LDFLAGS=-levent
+
+http-server: http-server.c
+	gcc ${CFLGAS} -o $@ $^ $(LDFLAGS)
+
+tcp-client: tcp-client.c
+	gcc ${CFLGAS} -o $@ $^ $(LDFLAGS)
 
 clean:
-	rm -f test
+	rm -f http-server tcp-client
