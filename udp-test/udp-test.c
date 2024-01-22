@@ -185,14 +185,14 @@ void usage()
 
 static struct option g_options[] = {
     {"help", no_argument, NULL, 'h'},
-    {"server", required_argument, NULL, 's'},
-    {"client", required_argument, NULL, 'c'},
+    {"daemon", no_argument, NULL, 'd'},
+    {"show", no_argument, NULL, 'o'},
+    {"list", no_argument, NULL, 'l'},
+    {"server", no_argument, NULL, 's'},
+    {"client", no_argument, NULL, 'c'},
     {"size", required_argument, NULL, 'n'},
     {"ip", required_argument, NULL, 'i'},
     {"port", required_argument, NULL, 'p'},
-    {"show", no_argument, NULL, 'o'},
-    {"daemon", no_argument, NULL, 'd'},
-    {"list", no_argument, NULL, 'l'},
     {NULL, 0, NULL, 0}
 };
 
@@ -207,8 +207,7 @@ int main(int argc, char **argv)
     int opt = 0;
     int size = 0;
     char addr[128] = {0};
-
-    const char *optstr = "hdoscn:i:p:";
+    const char *optstr = "hdolscn:i:p:";
 
     if (argc == 1) {
         usage();
