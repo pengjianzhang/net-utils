@@ -31,6 +31,7 @@ int g_first = 1;
 int g_ping = 0;
 int g_thread = 1;
 int g_port = 80;
+int g_lport = 0;
 int g_udp = 0;
 int g_num = 0;
 int g_ssl_enable = 0;
@@ -38,6 +39,7 @@ int g_time = 0;
 int g_timestamp = 0;
 char g_path[PATH_SIZE];
 char g_addr[ADDR_SIZE];
+char g_laddr[ADDR_SIZE];
 
 #define BUF_SIZE    65536
 __thread char req_buf[BUF_SIZE + 1] =
@@ -192,11 +194,13 @@ int socket_addr(struct sockaddr_storage *addr, const char *str, int port)
         p6->sin6_port = htons(port);
         inet_pton(AF_INET6, str, &(p6->sin6_addr));
         return AF_INET6;
-    } else {
+    } else if (str[0]) {
         p4->sin_family = AF_INET;
         p4->sin_port = htons(port);
         p4->sin_addr.s_addr = inet_addr(str);
         return AF_INET;
+    } else {
+        return -1;
     }
 }
 
@@ -210,6 +214,10 @@ static int server_listen(const char *addr, int port, int udp)
     int len = sizeof(struct sockaddr_storage);
 
     af = socket_addr(&saddr, addr, port);
+    if (af < 0) {
+        return -1;
+    }
+
     if (af == AF_UNIX) {
         len = sizeof(struct sockaddr_un);
     }
@@ -315,14 +323,20 @@ void server_run(void *data)
     }
 }
 
-static int client_connect(const char *addr, int port, int udp)
+static int client_connect(const char *addr, int port, const char *laddr, int lport, int udp)
 {
     int fd = 0;
     int af = 0;
+    int af2 = 0;
     struct sockaddr_storage saddr;
+    struct sockaddr_storage laddr2;
     int len = sizeof(struct sockaddr_storage);
 
     af = socket_addr(&saddr, addr, port);
+    if (af < 0) {
+        return -1;
+    }
+
     if (af == AF_UNIX) {
         len = sizeof(struct sockaddr_un);
     }
@@ -331,6 +345,11 @@ static int client_connect(const char *addr, int port, int udp)
         fd = socket(af, SOCK_DGRAM, 0);
     } else {
         fd = socket(af, SOCK_STREAM, 0);
+    }
+
+    af2 = socket_addr(&laddr2, laddr, lport);
+    if (af2 == af) {
+        bind(fd, (struct sockaddr *)&laddr2, len);
     }
 
     if(connect(fd, (struct sockaddr *)&saddr, len) < 0)  {
@@ -438,7 +457,7 @@ void *client_run(void *data)
 {
     int fd = 0;
 
-    fd = client_connect(g_addr, g_port, g_udp);
+    fd = client_connect(g_addr, g_port, g_laddr, g_lport, g_udp);
     if (!g_ping) {
         client_request_start();
     }
@@ -482,6 +501,8 @@ static void usage(void)
         "\t--udp|-u\n"
         "\t--server|-s ip/unix-socket-path\n"
         "\t--client|-c ip/unix-socket-path\n"
+        "\t--laddr|-L ip\n"
+        "\t--lport|-R port\n"
         "\t--port|-p port\n"
         "\t--show|-o\n"
         "\t--daemon|-D\n"
@@ -508,6 +529,7 @@ static struct option g_options[] = {
     {"udp", no_argument, NULL, 'u'},
     {"server", required_argument, NULL, 's'},
     {"client", required_argument, NULL, 'c'},
+    {"laddr", required_argument, NULL, 'L'},
     {"first", required_argument, NULL, 'f'},
     {"number", required_argument, NULL, 'n'},
     {"path", required_argument, NULL, 'a'},
@@ -515,6 +537,7 @@ static struct option g_options[] = {
     {"size", required_argument, NULL, 'S'},
     {"bind_cpu", required_argument, NULL, 'b'},
     {"port", required_argument, NULL, 'p'},
+    {"lport", required_argument, NULL, 'R'},
     {"repeat", required_argument, NULL, 'r'},
     {"thread", required_argument, NULL, 't'},
     {"show", no_argument, NULL, 'o'},
@@ -535,7 +558,7 @@ int main(int argc, char *argv[])
     int size = 0;
     int run_daemon = 0;
     int cpu = -1;
-    const char *optstr = "hufolTmPDb:s:c:n:p:S:w:r:t:a:";
+    const char *optstr = "hufolTmPDb:s:c:L:n:p:R:S:w:r:t:a:";
 
     if (argc == 1) {
         usage();
@@ -557,6 +580,15 @@ int main(int argc, char *argv[])
             case 's':
                 server = 1;
                 strncpy(g_addr, optarg, ADDR_SIZE);
+                break;
+            case 'L':
+                strncpy(g_laddr, optarg, ADDR_SIZE);
+                break;
+            case 'R':
+                g_lport = atoi(optarg);
+                if ((g_lport <= 0) || (g_lport >= 65536)) {
+                    goto err;
+                }
                 break;
             case 'n':
                 g_num = atoi(optarg);
