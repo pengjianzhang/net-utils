@@ -35,6 +35,7 @@ int g_udp = 0;
 int g_num = 0;
 int g_ssl_enable = 0;
 int g_time = 0;
+int g_timestamp = 0;
 char g_path[PATH_SIZE];
 char g_addr[ADDR_SIZE];
 
@@ -352,22 +353,23 @@ static void client_request_start(void)
     gettimeofday(&tv_last, NULL);
 }
 
-static void show_time(void)
-{
-    time_t t;
-
-    time(&t);
-    printf("%s", ctime(&t));
-}
-
 static int client_request_end(int n)
 {
     unsigned long us;
+    time_t t;
+    struct tm *tm;
+
     gettimeofday(&tv, NULL);
 
     us = (tv.tv_sec - tv_last.tv_sec)* 1000 * 1000 + (tv.tv_usec - tv_last.tv_usec);
     if (g_time) {
-        show_time();
+        time(&t);
+        tm = localtime(&t);
+        printf("%04d-%02d-%02d %02d:%02d:%02d\t", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+    }
+
+    if (g_timestamp) {
+        printf("%lu\t", tv.tv_sec);
     }
     printf("%f ms\n", us * 1.0/(n * 1000));
     fflush(stdout);
@@ -489,6 +491,7 @@ static void usage(void)
         "\t--first|-f\n"
         "\t--ping|-P\n"
         "\t--time|-T\n"
+        "\t--timestamp|-m\n"
         "\t--path|-a PATH\n"
         "\t--ssl|-l\n"
         "\t--thread|-t threads\n"
@@ -518,6 +521,7 @@ static struct option g_options[] = {
     {"daemon", no_argument, NULL, 'D'},
     {"ping", no_argument, NULL, 'P'},
     {"time", no_argument, NULL, 'T'},
+    {"timestamp", no_argument, NULL, 'm'},
     {"ssl", no_argument, NULL, 'l'},
     {NULL, 0, NULL, 0}
 };
@@ -531,7 +535,7 @@ int main(int argc, char *argv[])
     int size = 0;
     int run_daemon = 0;
     int cpu = -1;
-    const char *optstr = "hufolTPDb:s:c:n:p:S:w:r:t:a:";
+    const char *optstr = "hufolTmPDb:s:c:n:p:S:w:r:t:a:";
 
     if (argc == 1) {
         usage();
@@ -632,6 +636,9 @@ int main(int argc, char *argv[])
                 break;
             case 'T':
                 g_time = 1;
+                break;
+            case 'm':
+                g_timestamp = 1;
                 break;
             case 'h':
                 usage();
