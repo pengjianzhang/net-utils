@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
@@ -24,6 +25,7 @@
 int g_rtt_min_us = 1000 * 1000;
 __thread struct timeval tv_last;
 __thread struct timeval tv;
+int g_alarm = 0;
 int g_show = 0;
 int g_wait = 0;
 int g_repeat = 1;
@@ -397,6 +399,32 @@ static int client_request_end(int n)
     return us;
 }
 
+static void alarm_cb(int sig)
+{
+    g_alarm = 1;
+}
+
+static void alarm_init(void)
+{
+    struct sigaction alarmact;
+
+    bzero(&alarmact,sizeof(alarmact));
+    alarmact.sa_handler = alarm_cb;
+    alarmact.sa_flags = SA_NOMASK;
+    sigaction(SIGALRM,&alarmact,NULL);
+}
+
+static void alarm_add(int sec)
+{
+    g_alarm = 0;
+    alarm(sec);
+}
+
+static void alarm_del(void)
+{
+    alarm(0);
+}
+
 void client_loop(int fd, int n)
 {
     int i = 0;
@@ -406,6 +434,7 @@ void client_loop(int fd, int n)
     int us = 0;
     int large = 0;
 
+    alarm_init();
     if (g_first) {
         rcv_num = 1;
     } else {
@@ -413,6 +442,7 @@ void client_loop(int fd, int n)
     }
 
     for (i = 0; i < n; i++) {
+        alarm_add(1);
         if (g_ping) {
             client_request_start();
         }
@@ -433,7 +463,11 @@ void client_loop(int fd, int n)
                 ret = recv(fd, rsp_buf, BUF_SIZE, 0);
             }
         }
-
+/*
+        if (g_alarm) {
+            continue;
+        }
+*/
         if (g_ping) {
             us = client_request_end(1);
             if (us <= g_rtt_min_us) {
