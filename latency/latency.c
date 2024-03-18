@@ -433,6 +433,10 @@ void client_loop(int fd, int n)
     int rcv_num = 0;
     int us = 0;
     int large = 0;
+    int timeout = 0;
+
+    timeout = g_wait / (1000*1000);
+    timeout += 1;
 
     alarm_init();
     if (g_first) {
@@ -442,7 +446,7 @@ void client_loop(int fd, int n)
     }
 
     for (i = 0; i < n; i++) {
-        alarm_add(1);
+        alarm_add(timeout);
         if (g_ping) {
             client_request_start();
         }
@@ -473,7 +477,11 @@ void client_loop(int fd, int n)
         }
         show(rsp_buf, ret);
         if (g_wait) {
-            usleep(g_wait);
+            if (g_wait <= 1000*1000) {
+                usleep(g_wait);
+            } else {
+                sleep(g_wait/(1000*1000));
+            }
         }
     }
 }
