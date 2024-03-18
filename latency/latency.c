@@ -469,16 +469,7 @@ void client_loop(int fd, int n)
         }
 */
         if (g_ping) {
-            us = client_request_end(1);
-            if (us <= g_rtt_min_us) {
-                g_rtt_min_us = us;
-                large = 0;
-            } else {
-                large++;
-                if (large > 10) {
-                    break;
-                }
-            }
+            client_request_end(1);
         }
         show(rsp_buf, ret);
         if (g_wait) {
