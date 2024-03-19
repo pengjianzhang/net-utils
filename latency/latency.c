@@ -411,7 +411,7 @@ static void alarm_init(void)
     bzero(&alarmact,sizeof(alarmact));
     alarmact.sa_handler = alarm_cb;
     alarmact.sa_flags = SA_NOMASK;
-    sigaction(SIGALRM,&alarmact,NULL);
+    sigaction(SIGALRM, &alarmact, NULL);
 }
 
 static void alarm_add(int sec)
@@ -467,11 +467,14 @@ void client_loop(int fd, int n)
                 ret = recv(fd, rsp_buf, BUF_SIZE, 0);
             }
         }
-/*
+
+        alarm_del();
         if (g_alarm) {
-            continue;
+            alarm_add(timeout);
+            recv(fd, rsp_buf, BUF_SIZE, 0);
+            alarm_del();
         }
-*/
+
         if (g_ping) {
             client_request_end(1);
         }
