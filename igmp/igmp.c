@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define IGMP_REPORT 0x16
 #define IGMP_LEAVE  0x17
@@ -123,6 +124,14 @@ static int igmp_recv(int sk, uint32_t group)
     return len;
 }
 
+int g_stop = 0;
+static void signal_handler(int signum)
+{
+    if (signum == SIGINT) {
+        g_stop = 1;
+    }
+}
+
 int main(int argc, char **argv)
 {
     int i = 0;
@@ -136,6 +145,8 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    signal(SIGINT, signal_handler);
+
     group = inet_addr(argv[1]);
     port = htons(atoi(argv[2]));
 
@@ -147,7 +158,7 @@ int main(int argc, char **argv)
     sleep(1);
     igmp_send_report(group);
 
-    for (i = 0; i < 100000; i++) {
+    while (g_stop == 0) {
         igmp_recv(sk_igmp, group);
         usleep(1000);
     }
