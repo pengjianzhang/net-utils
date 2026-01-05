@@ -215,6 +215,7 @@ static int run_client(const char *src_ip_str,
             printf("seq=%u rtt_us=%lu\n", seq, rtt_us);
             break;
         }
+        sleep(1);
     }
 
     close(fd);

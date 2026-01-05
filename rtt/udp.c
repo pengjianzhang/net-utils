@@ -152,8 +152,15 @@ static int run_client(const char *src_ip,
 
         printf("seq=%u rtt_us=%lu\n", seq, rtt_us);
 
-        if (interval_us > 0)
-            usleep(interval_us);
+        if (interval_us > 0) {
+            if (interval_us < 1000000) {
+                usleep(interval_us);
+            } else {
+                sleep(interval_us/1000000);
+            }
+        } else {
+            sleep(1);
+        }
     }
 
     close(fd);
