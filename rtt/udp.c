@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 #define MAGIC 0xA1B2C3D4u
-#define BUF_SIZE 1500
+#define BUF_SIZE 2048
 
 #pragma pack(push, 1)
 struct payload {
@@ -18,6 +18,12 @@ struct payload {
     uint64_t ts_us_be;
 };
 #pragma pack(pop)
+
+
+struct payload2 {
+    struct payload head;
+    uint8_t data[2048];
+};
 
 /* gettimeofday -> microseconds */
 static uint64_t now_us(void)
@@ -56,20 +62,18 @@ static int run_server(uint16_t listen_port)
     while (1) {
         struct sockaddr_in peer;
         socklen_t peer_len = sizeof(peer);
-
-        ssize_t n = recvfrom(fd, buf, sizeof(buf), 0,
-                             (struct sockaddr *)&peer, &peer_len);
-        if (n < (ssize_t)sizeof(struct payload))
+        ssize_t n = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&peer, &peer_len);
+        if (n < (ssize_t)sizeof(struct payload)) {
             continue;
+        }
 
-        struct payload pl;
-        memcpy(&pl, buf, sizeof(pl));
-        if (ntohl(pl.magic) != MAGIC)
+        struct payload *pl = (struct payload *)buf;
+        if (ntohl(pl->magic) != MAGIC) {
             continue;
+        }
 
         /* echo back */
-        sendto(fd, buf, n, 0,
-               (struct sockaddr *)&peer, peer_len);
+        sendto(fd, buf, n, 0, (struct sockaddr *)&peer, peer_len);
     }
 
     close(fd);
@@ -83,7 +87,8 @@ static int run_client(const char *src_ip,
                       const char *dst_ip,
                       uint16_t dst_port,
                       int count,
-                      int interval_us)
+                      int interval_us,
+                      int size)
 {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
@@ -120,16 +125,20 @@ static int run_client(const char *src_ip,
     }
 
     uint8_t buf[BUF_SIZE];
+    struct payload2 pl;
+    struct payload *head = &pl.head;
+
+    if (size < sizeof(struct payload)) {
+        size = sizeof(struct payload);
+    }
 
     for (int i = 0; i < count; i++) {
-        struct payload pl;
-        pl.magic    = htonl(MAGIC);
-        pl.seq      = htonl((uint32_t)i);
-        pl.ts_us_be = htobe64(now_us());
+        head->magic    = htonl(MAGIC);
+        head->seq      = htonl((uint32_t)i);
+        head->ts_us_be = htobe64(now_us());
 
         /* send */
-        if (sendto(fd, &pl, sizeof(pl), 0,
-                   (struct sockaddr *)&dst, sizeof(dst)) < 0) {
+        if (sendto(fd, head, size, 0, (struct sockaddr *)&dst, sizeof(dst)) < 0) {
             perror("sendto");
             break;
         }
@@ -141,16 +150,15 @@ static int run_client(const char *src_ip,
             continue;
         }
 
-        struct payload rpl;
-        memcpy(&rpl, buf, sizeof(rpl));
-        if (ntohl(rpl.magic) != MAGIC)
+        struct payload *rpl = (struct payload *)buf;
+        if (ntohl(rpl->magic) != MAGIC)
             continue;
 
-        uint32_t seq = ntohl(rpl.seq);
-        uint64_t sent_us = be64toh(rpl.ts_us_be);
+        uint32_t seq = ntohl(rpl->seq);
+        uint64_t sent_us = be64toh(rpl->ts_us_be);
         uint64_t rtt_us  = now_us() - sent_us;
 
-        printf("seq=%u rtt_us=%lu\n", seq, rtt_us);
+        printf("seq=%u rtt_us=%lu size=%ld\n", seq, rtt_us, n);
 
         if (interval_us > 0) {
             if (interval_us < 1000000) {
@@ -176,11 +184,11 @@ static void usage(const char *prog)
         "  Server:\n"
         "    %s -s <listen_port>\n"
         "  Client:\n"
-        "    %s -c <src_ip> <src_port> <dst_ip> <dst_port> <count> [interval_us]\n"
+        "    %s -c <src_ip> <src_port> <dst_ip> <dst_port> <count> interval_us size\n"
         "\n"
         "Examples:\n"
         "  %s -s 9000\n"
-        "  %s -c 192.168.1.10 40000 192.168.1.20 9000 10 100000\n",
+        "  %s -c 192.168.1.10 40000 192.168.1.20 9000 10 100000 8\n",
         prog, prog, prog, prog);
 }
 
@@ -200,17 +208,17 @@ int main(int argc, char **argv)
     }
 
     if (!strcmp(argv[1], "-c")) {
-        if (argc < 8 || argc > 9) {
+        if (argc != 9) {
             usage(argv[0]);
             return 1;
         }
-        int interval_us = (argc == 9) ? atoi(argv[8]) : 0;
+        int count = atoi(argv[6]);
+        int interval_us = atoi(argv[7]);
+        int size = atoi(argv[8]);
         return run_client(
             argv[2], (uint16_t)atoi(argv[3]),
             argv[4], (uint16_t)atoi(argv[5]),
-            atoi(argv[6]),
-            interval_us
-        );
+            count, interval_us, size);
     }
 
     usage(argv[0]);
