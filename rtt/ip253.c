@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #define IPPROTO_TEST 253
 #define MAGIC 0xA1B2C3D4u
