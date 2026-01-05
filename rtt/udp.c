@@ -1,4 +1,3 @@
-
 #include <arpa/inet.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,21 +10,18 @@
 #define MAGIC 0xA1B2C3D4u
 #define BUF_SIZE 2048
 
+/* ---------------- payload header (16 bytes) ---------------- */
+
 #pragma pack(push, 1)
-struct payload {
-    uint32_t magic;
-    uint32_t seq;
-    uint64_t ts_us_be;
-};
+struct payload_hdr {
+    uint32_t magic;      /* 4 */
+    uint32_t seq;        /* 4 */
+    uint64_t ts_us_be;   /* 8 */
+};                       /* = 16 bytes */
 #pragma pack(pop)
 
+/* ---------------- utils ---------------- */
 
-struct payload2 {
-    struct payload head;
-    uint8_t data[2048];
-};
-
-/* gettimeofday -> microseconds */
 static uint64_t now_us(void)
 {
     struct timeval tv;
@@ -33,7 +29,7 @@ static uint64_t now_us(void)
     return (uint64_t)tv.tv_sec * 1000000ull + tv.tv_usec;
 }
 
-/* ================= server ================= */
+/* ---------------- server ---------------- */
 
 static int run_server(uint16_t listen_port)
 {
@@ -62,33 +58,34 @@ static int run_server(uint16_t listen_port)
     while (1) {
         struct sockaddr_in peer;
         socklen_t peer_len = sizeof(peer);
-        ssize_t n = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&peer, &peer_len);
-        if (n < (ssize_t)sizeof(struct payload)) {
-            continue;
-        }
 
-        struct payload *pl = (struct payload *)buf;
-        if (ntohl(pl->magic) != MAGIC) {
+        ssize_t n = recvfrom(fd, buf, sizeof(buf), 0,
+                             (struct sockaddr *)&peer, &peer_len);
+        if (n < (ssize_t)(sizeof(struct payload_hdr)))
             continue;
-        }
 
-        /* echo back */
-        sendto(fd, buf, n, 0, (struct sockaddr *)&peer, peer_len);
+        struct payload_hdr *hdr = (struct payload_hdr *)buf;
+        if (ntohl(hdr->magic) != MAGIC)
+            continue;
+
+        /* echo back exactly what we got */
+        sendto(fd, buf, n, 0,
+               (struct sockaddr *)&peer, peer_len);
     }
 
     close(fd);
     return 0;
 }
 
-/* ================= client ================= */
+/* ---------------- client ---------------- */
 
 static int run_client(const char *src_ip,
                       uint16_t src_port,
                       const char *dst_ip,
                       uint16_t dst_port,
                       int count,
-                      int interval_us,
-                      int size)
+                      int payload_size,
+                      int interval_us)
 {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
@@ -124,58 +121,61 @@ static int run_client(const char *src_ip,
         return 1;
     }
 
-    uint8_t buf[BUF_SIZE];
-    struct payload2 pl;
-    struct payload *head = &pl.head;
+    if (payload_size < 16)
+        payload_size = 16;
 
-    if (size < sizeof(struct payload)) {
-        size = sizeof(struct payload);
+    uint8_t *buf = calloc(1, payload_size);
+    if (!buf) {
+        perror("calloc");
+        close(fd);
+        return 1;
     }
 
     for (int i = 0; i < count; i++) {
-        head->magic    = htonl(MAGIC);
-        head->seq      = htonl((uint32_t)i);
-        head->ts_us_be = htobe64(now_us());
+        struct payload_hdr *hdr = (struct payload_hdr *)buf;
+
+        hdr->magic    = htonl(MAGIC);
+        hdr->seq      = htonl((uint32_t)i);
+        hdr->ts_us_be = htobe64(now_us());
 
         /* send */
-        if (sendto(fd, head, size, 0, (struct sockaddr *)&dst, sizeof(dst)) < 0) {
+        if (sendto(fd, buf, payload_size, 0,
+                   (struct sockaddr *)&dst, sizeof(dst)) < 0) {
             perror("sendto");
             break;
         }
 
         /* blocking recv */
-        ssize_t n = recvfrom(fd, buf, sizeof(buf), 0, NULL, NULL);
-        if (n < (ssize_t)sizeof(struct payload)) {
+        ssize_t n = recvfrom(fd, buf, payload_size, 0, NULL, NULL);
+        if (n < (ssize_t)(sizeof(struct payload_hdr))) {
             printf("seq=%d short packet\n", i);
             continue;
         }
 
-        struct payload *rpl = (struct payload *)buf;
-        if (ntohl(rpl->magic) != MAGIC)
+        struct payload_hdr *rhdr = (struct payload_hdr *)buf;
+        if (ntohl(rhdr->magic) != MAGIC)
             continue;
 
-        uint32_t seq = ntohl(rpl->seq);
-        uint64_t sent_us = be64toh(rpl->ts_us_be);
+        uint32_t seq = ntohl(rhdr->seq);
+        if ((int)seq != i)
+            continue;
+
+        uint64_t sent_us = be64toh(rhdr->ts_us_be);
         uint64_t rtt_us  = now_us() - sent_us;
 
-        printf("seq=%u rtt_us=%lu size=%ld\n", seq, rtt_us, n);
+        printf("seq=%u rtt_us=%lu payload=%d\n",
+               seq, rtt_us, payload_size);
 
-        if (interval_us > 0) {
-            if (interval_us < 1000000) {
-                usleep(interval_us);
-            } else {
-                sleep(interval_us/1000000);
-            }
-        } else {
-            sleep(1);
-        }
+        if (interval_us > 0)
+            usleep(interval_us);
     }
 
+    free(buf);
     close(fd);
     return 0;
 }
 
-/* ================= main ================= */
+/* ---------------- main ---------------- */
 
 static void usage(const char *prog)
 {
@@ -184,11 +184,15 @@ static void usage(const char *prog)
         "  Server:\n"
         "    %s -s <listen_port>\n"
         "  Client:\n"
-        "    %s -c <src_ip> <src_port> <dst_ip> <dst_port> <count> interval_us size\n"
+        "    %s -c <src_ip> <src_port> <dst_ip> <dst_port> <count> "
+        "[-S payload_size] [interval_us]\n"
+        "\n"
+        "Options:\n"
+        "  -S <size>   payload size (min 16 bytes)\n"
         "\n"
         "Examples:\n"
         "  %s -s 9000\n"
-        "  %s -c 192.168.1.10 40000 192.168.1.20 9000 10 100000 8\n",
+        "  %s -c 127.0.0.1 40000 127.0.0.1 9000 10 -S 512 100000\n",
         prog, prog, prog, prog);
 }
 
@@ -208,17 +212,29 @@ int main(int argc, char **argv)
     }
 
     if (!strcmp(argv[1], "-c")) {
-        if (argc != 9) {
+        if (argc < 8) {
             usage(argv[0]);
             return 1;
         }
-        int count = atoi(argv[6]);
-        int interval_us = atoi(argv[7]);
-        int size = atoi(argv[8]);
+
+        int payload_size = 16;
+        int interval_us  = 0;
+
+        for (int i = 8; i < argc; i++) {
+            if (!strcmp(argv[i], "-S") && i + 1 < argc) {
+                payload_size = atoi(argv[++i]);
+            } else {
+                interval_us = atoi(argv[i]);
+            }
+        }
+
         return run_client(
             argv[2], (uint16_t)atoi(argv[3]),
             argv[4], (uint16_t)atoi(argv[5]),
-            count, interval_us, size);
+            atoi(argv[6]),
+            payload_size,
+            interval_us
+        );
     }
 
     usage(argv[0]);
